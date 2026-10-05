@@ -234,5 +234,6 @@ spotafriend/
 
 | Name | Role |
 |---|---|
+|Shuxin Jin | |
 | | |
 | | |
