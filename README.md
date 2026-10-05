@@ -233,7 +233,9 @@ spotafriend/
 ## 👥 Team
 
 | Name | Role |
-|---|---|
-|Shuxin Jin | |
-| | |
-| | |
+|Shoghine Grigoryan|---|
+|Shuxin (Doris) Jin | |
+|Thomas Katz| |
+|Oluchi Calista Igwilo| |
+|Xiaoying (Sarah) Chen| |
+|Yuke Zhao | |
