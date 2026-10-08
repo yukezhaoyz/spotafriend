@@ -1,7 +1,27 @@
 """Django settings for the Spotafriend backend (local hackathon demo)."""
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_env_file(path):
+    """Read KEY=VALUE lines from the repo's .env file (see .env.example).
+    Values already set in the terminal win over the file, and blank values
+    count as not set."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip().strip("'\"")
+        if value:
+            os.environ.setdefault(key.strip(), value)
+
+
+_load_env_file(BASE_DIR.parent / ".env")
 DATASET_CSV = BASE_DIR.parent / "dataset.csv"
 
 SECRET_KEY = "dev-only-not-secret"

@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 dataset.csv
+
+# Local settings and secrets (copy .env.example to .env)
+.env
