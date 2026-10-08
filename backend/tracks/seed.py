@@ -38,11 +38,11 @@ def seed_fake_users(seed=42):
         pool = sorted(set(
             Track.objects.filter(track_genre__in=genres, popularity__gte=40).values_list("track_id", flat=True)
         ))
-        create_user(name, rng.sample(pool, min(SONGS_PER_USER, len(pool))))
+        create_user(name, rng.sample(pool, min(SONGS_PER_USER, len(pool))), is_bot=True)
 
     # Starts with a generic pop playlist; retune_demo_friend reshapes it per import.
     pool = sorted(set(Track.objects.filter(track_genre="pop", popularity__gte=40).values_list("track_id", flat=True)))
-    create_user(DEMO_FRIEND_NAME, rng.sample(pool, SONGS_PER_USER), is_demo_friend=True)
+    create_user(DEMO_FRIEND_NAME, rng.sample(pool, SONGS_PER_USER), is_demo_friend=True, is_bot=True)
 
 
 DEMO_FRIEND_NAME = "Riley"

@@ -13,6 +13,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "tracks.middleware.OneRequestAtATimeMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
 
