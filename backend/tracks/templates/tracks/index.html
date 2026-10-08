@@ -142,6 +142,8 @@
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); animation: slide-in 0.25s ease-out;
     }
     .toast strong { display: block; font-size: 13px; color: var(--accent); }
+    .toast-text { background: none; color: inherit; padding: 0; font: inherit; font-weight: 400; text-align: left; border-radius: 0; }
+    .notif-request { padding: 10px 14px; font-size: 14px; background: rgba(30, 215, 96, 0.08); }
     @keyframes slide-in { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 
     .message-btn { margin-top: 14px; padding: 8px 18px; font-size: 14px; }
@@ -165,6 +167,12 @@
     .bubble.theirs { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
     .chat-empty { margin: auto; text-align: center; color: var(--muted); font-size: 14px; }
     .typing { color: var(--muted); font-size: 13px; padding: 0 14px 6px; min-height: 1.5em; }
+    .chat-state { margin: 0 14px 8px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); font-size: 14px; }
+    .chat-form input:disabled, .chat-form button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .actions { display: flex; gap: 6px; margin-top: 8px; }
+    .actions button { padding: 6px 14px; font-size: 13px; }
+    .actions .secondary { background: var(--surface); color: var(--text); border: 1px solid var(--muted); }
+    .actions .secondary:hover { border-color: var(--text); }
     .bubble.song { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; white-space: normal; }
     .bubble.song .note {
       grid-row: span 2; width: 34px; height: 34px; border-radius: 6px;
@@ -259,6 +267,7 @@
     <button class="chat-close" id="chat-close" type="button" aria-label="Close chat">×</button>
   </div>
   <div class="chat-log" id="chat-log" aria-live="polite"></div>
+  <div class="chat-state hidden" id="chat-state" role="status"></div>
   <div class="typing" id="chat-typing"></div>
   <div class="song-picker hidden" id="song-picker">
     <input id="song-search" placeholder="Search your playlist…" autocomplete="off" aria-label="Search your playlist">
@@ -432,15 +441,39 @@ function resetSession() {
   $("error").textContent = "The server restarted, so please submit your playlist again.";
 }
 
+// Ask to chat (or reopen an existing chat) from a match card.
 async function startChat(otherUserId) {
   if (!me) return;
   const data = await api("/api/conversations/", { user_id: me.id, other_user_id: otherUserId });
-  openChat = { id: data.id, other: data.other, lastShown: null };
-  $("chat-avatar").textContent = data.other.name[0];
-  $("chat-name").textContent = data.other.name;
+  showChat(data, data.other);
+}
+
+// Open a chat we already know about (from a notification). Unlike
+// startChat, this never sends or accepts a request on its own.
+async function openConversation(conversationId, other) {
+  if (!me) return;
+  const data = await api(`/api/conversations/${conversationId}/messages/?viewer=${me.id}`);
+  showChat({ ...data, id: conversationId }, other);
+}
+
+async function answerRequest(conversationId, other, accept) {
+  try {
+    const data = await api(`/api/conversations/${conversationId}/respond/`, { user_id: me.id, accept });
+    $("toast-slot").querySelector(`[data-conversation="${conversationId}"]`)?.remove();
+    if (accept || (openChat && openChat.id === conversationId)) showChat(data, other);
+  } catch (err) {
+    await openConversation(conversationId, other);  // already answered: show where things stand
+  }
+  poll(pollNotifications);
+}
+
+function showChat(data, other) {
+  openChat = { id: data.id, other, lastShown: null };
+  $("chat-avatar").textContent = other.name[0];
+  $("chat-name").textContent = other.name;
   $("chat").classList.remove("hidden");
   renderChat(data);
-  $("chat-input").focus();
+  if (!$("chat-input").disabled) $("chat-input").focus();
   poll(async () => { await refreshChat(); await pollNotifications(); });  // marks this chat's notices read
   clearInterval(pollTimer);
   pollTimer = setInterval(() => poll(refreshChat), POLL_MS);
@@ -460,14 +493,47 @@ async function refreshChat() {
   if (openChat && openChat.id === id) renderChat(data);
 }
 
+function renderChatState(data) {
+  const name = openChat.other.name;
+  const mine = data.requested_by === me.id;
+  const accepted = data.status === "accepted";
+  for (const id of ["chat-input", "song-btn"]) $(id).disabled = !accepted;
+  $("chat-form").querySelector("[type=submit]").disabled = !accepted;
+  $("chat-input").placeholder = accepted ? "Say hi…" : "Locked until accepted";
+  if (!accepted) closeSongPicker();
+  $("chat-state").classList.toggle("hidden", accepted);
+  if (accepted) return;
+
+  const button = (label, onclick, cls = "") => {
+    const b = el("button", { type: "button", class: cls }, label);
+    b.onclick = onclick;
+    return b;
+  };
+  const other = openChat.other, id = openChat.id;
+  if (data.status === "pending" && mine) {
+    $("chat-state").replaceChildren(`Waiting for ${name} to accept your chat request…`);
+  } else if (data.status === "pending") {
+    $("chat-state").replaceChildren(`${name} wants to chat with you.`, el("div", { class: "actions" },
+      button("Accept", () => answerRequest(id, other, true)),
+      button("Decline", () => answerRequest(id, other, false), "secondary")));
+  } else {
+    $("chat-state").replaceChildren(
+      mine ? `${name} isn't available to chat right now.` : `You declined ${name}'s chat request.`,
+      el("div", { class: "actions" }, button(mine ? "Ask again" : "Ask to chat", () => poll(() => startChat(other.id)))));
+  }
+}
+
 function renderChat(data) {
   $("chat-typing").textContent = data.typing ? `${openChat.other.name} is typing…` : "";
   const last = data.messages.length ? data.messages[data.messages.length - 1].id : null;
-  if (last === openChat.lastShown && $("chat-log").childElementCount) return;  // nothing new
-  openChat.lastShown = last;
+  const shown = `${last}:${data.status}:${data.requested_by}`;
+  if (shown === openChat.lastShown && $("chat-log").childElementCount) return;  // nothing new
+  openChat.lastShown = shown;
+  renderChatState(data);
   const log = $("chat-log");
   if (!data.messages.length) {
-    log.replaceChildren(el("div", { class: "chat-empty" }, `Start the conversation with ${openChat.other.name}.`));
+    const hint = data.status === "accepted" ? `Start the conversation with ${openChat.other.name}.` : "No messages yet.";
+    log.replaceChildren(el("div", { class: "chat-empty" }, hint));
     return;
   }
   log.replaceChildren(...data.messages.map((m) => {
@@ -577,7 +643,9 @@ async function pollNotifications({ quiet = false } = {}) {
     if (seenNotifications.has(n.id)) continue;
     seenNotifications.add(n.id);
     const chatIsOpen = openChat && openChat.id === n.conversation_id;
-    if (!quiet && n.kind === "message" && !n.read && !chatIsOpen) showToast(n);
+    if (quiet || n.read || chatIsOpen) continue;
+    if (n.kind === "chat_request" && n.needs_answer) showRequestToast(n);
+    else if (n.kind === "message" || n.kind === "chat_answer") showToast(n);
   }
 }
 
@@ -586,7 +654,7 @@ function renderNotifications(data) {
   $("badge").classList.toggle("hidden", data.unread === 0);
   $("bell").setAttribute("aria-label", `Notifications (${data.unread} unread)`);
   // Only redraw the list when it changed, so it doesn't shift under the mouse.
-  const signature = data.notifications.map((n) => `${n.id}:${n.read}`).join(",");
+  const signature = data.notifications.map((n) => `${n.id}:${n.read}:${n.needs_answer}`).join(",");
   if (signature === renderedSignature && $("notif-list").childElementCount) return;
   renderedSignature = signature;
   if (!data.notifications.length) {
@@ -594,6 +662,8 @@ function renderNotifications(data) {
     return;
   }
   $("notif-list").replaceChildren(...data.notifications.map((n) => {
+    if (n.needs_answer) return el("li", { class: "notif-request" },
+      n.text, el("span", { class: "notif-time" }, timeAgo(n.created_at)), requestButtons(n));
     const item = el("button", { class: `notif-item ${n.read ? "" : "unread"}`, type: "button" },
       n.text, el("span", { class: "notif-time" }, timeAgo(n.created_at)));
     item.onclick = () => openFromNotification(n);
@@ -603,14 +673,34 @@ function renderNotifications(data) {
 
 function openFromNotification(n) {
   closeNotifPanel();
-  if (n.from_user) poll(() => startChat(n.from_user.id));
+  if (n.conversation_id) poll(() => openConversation(n.conversation_id, n.from_user));
+  else if (n.from_user) poll(() => startChat(n.from_user.id));
 }
 
+function requestButtons(n) {
+  const accept = el("button", { type: "button" }, "Accept");
+  const decline = el("button", { type: "button", class: "secondary" }, "Decline");
+  accept.onclick = () => { closeNotifPanel(); answerRequest(n.conversation_id, n.from_user, true); };
+  decline.onclick = () => { closeNotifPanel(); answerRequest(n.conversation_id, n.from_user, false); };
+  return el("div", { class: "actions" }, accept, decline);
+}
+
+const TOAST_TITLES = { message: "New message", chat_answer: "Chat request" };
+
 function showToast(n) {
-  const toast = el("button", { class: "toast", type: "button" }, el("strong", {}, "New message"), n.text);
+  const toast = el("button", { class: "toast", type: "button" }, el("strong", {}, TOAST_TITLES[n.kind] || "Notification"), n.text);
   toast.onclick = () => { toast.remove(); openFromNotification(n); };
   $("toast-slot").replaceChildren(toast);
   setTimeout(() => toast.remove(), TOAST_MS);
+}
+
+// Chat requests stay on screen until answered or another pop-up replaces them.
+function showRequestToast(n) {
+  const text = el("button", { class: "toast-text", type: "button" }, n.text);
+  text.onclick = () => openFromNotification(n);
+  $("toast-slot").replaceChildren(
+    el("div", { class: "toast", role: "alertdialog", "aria-label": "Chat request", "data-conversation": n.conversation_id },
+      el("strong", {}, "Chat request"), text, requestButtons(n)));
 }
 
 function closeNotifPanel() {

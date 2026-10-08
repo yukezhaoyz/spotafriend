@@ -1,5 +1,6 @@
-"""One-to-one chat. The page checks for new messages every couple of
-seconds; made-up listeners answer on their own after a short pause."""
+"""One-to-one chat. A chat starts as a request the other person accepts or
+declines. The page checks for news every couple of seconds; made-up
+listeners accept requests and answer messages on their own after a pause."""
 import random
 from datetime import timedelta
 
@@ -10,6 +11,7 @@ from . import notifications
 from .models import Conversation, Message, MockPlaylist, Notification, Track, UserTrack
 
 BOT_REPLY_DELAY = (1.5, 3.0)  # seconds
+BOT_ACCEPT_DELAY = (1.5, 2.5)  # seconds
 MAX_MESSAGE_LENGTH = 1000
 
 BOT_FOLLOW_UPS = [
@@ -22,10 +24,78 @@ BOT_FOLLOW_UPS = [
 ]
 
 
-def get_or_create_conversation(user, other):
+class ChatError(Exception):
+    pass
+
+
+def find_conversation(user, other):
     a, b = sorted([user, other], key=lambda u: u.pk)
-    conversation, _ = Conversation.objects.get_or_create(user_a=a, user_b=b)
+    return Conversation.objects.filter(user_a=a, user_b=b).first()
+
+
+def effective_status(conversation):
+    if conversation.status_at and conversation.status_at > timezone.now():
+        return Conversation.PENDING
+    return conversation.status
+
+
+def can_message(conversation):
+    return effective_status(conversation) == Conversation.ACCEPTED
+
+
+@transaction.atomic
+def request_chat(user, other):
+    """User asks to chat with other. Returns the conversation, which may
+    already exist: an accepted chat just reopens, and asking someone who
+    already asked you counts as accepting their request."""
+    conversation = find_conversation(user, other)
+    if conversation is None:
+        a, b = sorted([user, other], key=lambda u: u.pk)
+        conversation = Conversation.objects.create(user_a=a, user_b=b, requested_by=user)
+    else:
+        status = effective_status(conversation)
+        if status == Conversation.ACCEPTED:
+            return conversation
+        if status == Conversation.PENDING:
+            if conversation.requested_by_id == other.pk:
+                respond(conversation, user, accept=True)
+            return conversation  # otherwise still waiting on the other person
+        # Declined earlier: ask again.
+        conversation.requested_by = user
+        conversation.status, conversation.status_at = Conversation.PENDING, None
+        conversation.save()
+
+    notifications.notify_chat_request(conversation, requester=user, recipient=other)
+    if other.is_bot:
+        _bot_accepts(conversation, bot=other, human=user)
     return conversation
+
+
+def _bot_accepts(conversation, bot, human):
+    at = timezone.now() + timedelta(seconds=random.uniform(*BOT_ACCEPT_DELAY))
+    conversation.status, conversation.status_at = Conversation.ACCEPTED, at
+    conversation.save()
+    notifications.notify_chat_answer(conversation, responder=bot, requester=human, accepted=True, at=at)
+
+
+@transaction.atomic
+def respond(conversation, responder, accept):
+    """The person who was asked accepts or declines."""
+    if responder.pk not in (conversation.user_a_id, conversation.user_b_id):
+        raise ChatError("You're not part of this chat")
+    if conversation.requested_by_id == responder.pk:
+        raise ChatError("You can't answer your own chat request")
+    if effective_status(conversation) != Conversation.PENDING:
+        raise ChatError("This chat request was already answered")
+    conversation.status = Conversation.ACCEPTED if accept else Conversation.DECLINED
+    conversation.status_at = timezone.now()
+    conversation.save()
+    requester = conversation.requested_by
+    notifications.resolve_chat_request(responder, conversation)
+    notifications.notify_chat_answer(conversation, responder=responder, requester=requester, accepted=accept)
+    if accept and requester.is_bot:
+        # A made-up listener who asked first opens with a hello.
+        _queue_bot_reply(conversation, bot=requester, human=responder)
 
 
 def other_participant(conversation, user):
@@ -95,12 +165,15 @@ GREETING_DELAY = 6  # seconds after import
 
 @transaction.atomic
 def queue_greeting(bot, human):
-    """Have a made-up match say hi first, shortly after the human imports a
-    playlist. Skipped if the two have already talked."""
-    conversation = get_or_create_conversation(human, bot)
-    if conversation.messages.exists():
+    """Have a made-up match ask to chat shortly after the human imports a
+    playlist; they say hi once it's accepted. Skipped if the two already
+    have a chat."""
+    if find_conversation(human, bot) is not None:
         return
-    _queue_bot_reply(conversation, bot=bot, human=human, delay=GREETING_DELAY)
+    a, b = sorted([human, bot], key=lambda u: u.pk)
+    conversation = Conversation.objects.create(user_a=a, user_b=b, requested_by=bot)
+    at = timezone.now() + timedelta(seconds=GREETING_DELAY)
+    notifications.notify_chat_request(conversation, requester=bot, recipient=human, at=at)
 
 
 def _queue_bot_reply(conversation, bot, human, delay=None, trigger=None):

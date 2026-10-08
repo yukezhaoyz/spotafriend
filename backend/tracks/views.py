@@ -9,7 +9,7 @@ from django.views.decorators.http import require_GET, require_POST
 from . import chat, email_alerts, matching, notifications, seed
 from .playlists import PlaylistNotFound, fetch_playlist, normalize_playlist_url, track_ids_from_payload
 from .loader import run_readonly_sql
-from .models import Conversation, MockPlaylist, Track, User, UserTrack
+from .models import Conversation, MockPlaylist, Notification, Track, User, UserTrack
 
 MAX_ROWS = 1000
 
@@ -233,19 +233,37 @@ def _conversation_json(conversation):
             for m in chat.visible_messages(conversation)
         ],
         "typing": chat.bot_is_typing(conversation),
+        "status": chat.effective_status(conversation),
+        "requested_by": conversation.requested_by_id,
     }
 
 
 @csrf_exempt
 @require_POST
 def start_conversation(request):
-    """POST {"user_id": me, "other_user_id": them}: open (or reopen) a chat."""
+    """POST {"user_id": me, "other_user_id": them}: ask to chat, or reopen an
+    existing chat. The other person has to accept before messages go through."""
     body = _read_json(request) or {}
     user = get_object_or_404(User, pk=body.get("user_id"))
     other = get_object_or_404(User, pk=body.get("other_user_id"))
     if user.pk == other.pk:
         return JsonResponse({"error": "You can't chat with yourself"}, status=400)
-    conversation = chat.get_or_create_conversation(user, other)
+    conversation = chat.request_chat(user, other)
+    return JsonResponse({**_conversation_json(conversation), "other": {"id": other.pk, "name": other.name}})
+
+
+@csrf_exempt
+@require_POST
+def respond_to_chat(request, conversation_id):
+    """POST {"user_id": me, "accept": true|false}: answer a chat request."""
+    conversation = get_object_or_404(Conversation, pk=conversation_id)
+    body = _read_json(request) or {}
+    user = get_object_or_404(User, pk=body.get("user_id"))
+    try:
+        chat.respond(conversation, user, accept=bool(body.get("accept")))
+    except chat.ChatError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    other = chat.other_participant(conversation, user)
     return JsonResponse({**_conversation_json(conversation), "other": {"id": other.pk, "name": other.name}})
 
 
@@ -263,6 +281,8 @@ def conversation_messages(request, conversation_id):
         if sender_id not in (conversation.user_a_id, conversation.user_b_id):
             return JsonResponse({"error": "Sender isn't part of this chat"}, status=403)
         sender = User.objects.get(pk=sender_id)
+        if not chat.can_message(conversation):
+            return JsonResponse({"error": _not_accepted_reason(conversation, sender)}, status=403)
         song = None
         if track_id := body.get("track_id"):
             song = chat.find_song(sender, str(track_id))
@@ -282,6 +302,15 @@ def conversation_messages(request, conversation_id):
     return JsonResponse(_conversation_json(conversation))
 
 
+def _not_accepted_reason(conversation, sender):
+    other = chat.other_participant(conversation, sender)
+    if chat.effective_status(conversation) == Conversation.DECLINED:
+        return "This chat request was declined"
+    if conversation.requested_by_id == sender.pk:
+        return f"{other.name} hasn't accepted your chat request yet"
+    return f"Accept {other.name}'s chat request first"
+
+
 NOTIFICATIONS_SHOWN = 20
 
 
@@ -294,7 +323,7 @@ def user_notifications(request, user_id):
     elif request.method != "GET":
         return JsonResponse({"error": "Method not allowed"}, status=405)
     notifications.touch_last_seen(user.pk)  # the page checks in here every few seconds
-    items = notifications.visible(user).select_related("from_user")[:NOTIFICATIONS_SHOWN]
+    items = notifications.visible(user).select_related("from_user", "conversation")[:NOTIFICATIONS_SHOWN]
     return JsonResponse({
         "unread": notifications.visible(user).filter(read=False).count(),
         "notifications": [
@@ -306,6 +335,12 @@ def user_notifications(request, user_id):
                 "conversation_id": n.conversation_id,
                 "created_at": n.created_at.isoformat(),
                 "read": n.read,
+                # A chat request that's still waiting for this user's answer.
+                "needs_answer": (
+                    n.kind == Notification.CHAT_REQUEST
+                    and chat.effective_status(n.conversation) == Conversation.PENDING
+                    and n.conversation.requested_by_id == n.from_user_id
+                ),
             }
             for n in items
         ],

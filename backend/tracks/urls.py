@@ -9,6 +9,7 @@ urlpatterns = [
     path("import/", views.import_playlist),
     path("conversations/", views.start_conversation),
     path("conversations/<int:conversation_id>/messages/", views.conversation_messages),
+    path("conversations/<int:conversation_id>/respond/", views.respond_to_chat),
     path("playlists/", views.playlists),
     path("users/", views.users),
     path("users/<int:user_id>/", views.user_detail),

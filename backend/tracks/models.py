@@ -103,10 +103,23 @@ class MockPlaylist(models.Model):
 
 
 class Conversation(models.Model):
-    """A chat between two users, stored with the lower user id first."""
+    """A chat between two users, stored with the lower user id first. It
+    starts as a request that the other person accepts or declines."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
 
     user_a = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
     user_b = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
+    status = models.CharField(
+        max_length=10, default=PENDING,
+        choices=[(PENDING, "Waiting for an answer"), (ACCEPTED, "Accepted"), (DECLINED, "Declined")],
+    )
+    # When the status took effect. Bots accept with a time a moment in the
+    # future, and until then the request still counts as pending.
+    status_at = models.DateTimeField(null=True)
 
     class Meta:
         db_table = "conversations"
@@ -133,9 +146,14 @@ class Message(models.Model):
 class Notification(models.Model):
     MATCH = "match"
     MESSAGE = "message"
+    CHAT_REQUEST = "chat_request"
+    CHAT_ANSWER = "chat_answer"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
-    kind = models.CharField(max_length=20, choices=[(MATCH, "New match"), (MESSAGE, "New message")])
+    kind = models.CharField(max_length=20, choices=[
+        (MATCH, "New match"), (MESSAGE, "New message"),
+        (CHAT_REQUEST, "Chat request"), (CHAT_ANSWER, "Answer to a chat request"),
+    ])
     text = models.CharField(max_length=300)
     from_user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, related_name="+")
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, null=True, related_name="+")
