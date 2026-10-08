@@ -6,10 +6,10 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import matching, seed
+from . import chat, email_alerts, matching, notifications, seed
 from .playlists import PlaylistNotFound, fetch_playlist, normalize_playlist_url, track_ids_from_payload
 from .loader import run_readonly_sql
-from .models import MockPlaylist, Track, User, UserTrack
+from .models import Conversation, MockPlaylist, Track, User, UserTrack
 
 MAX_ROWS = 1000
 
@@ -185,6 +185,11 @@ def import_playlist(request):
 
     seed.retune_demo_friend(track_ids, seed_key=url)
     matches = matching.nearest_neighbors(user, MATCHES_SHOWN, pin_demo_friend=True)
+    if matches:
+        top = User.objects.get(pk=matches[0]["user_id"])
+        notifications.notify_match(user, top, matches[0]["score"])
+        if top.is_bot:
+            chat.queue_greeting(bot=top, human=user)
     for m in matches:
         their_ids = UserTrack.objects.filter(user_id=m["user_id"]).values_list("track_id", flat=True)
         their_songs = {}
@@ -205,3 +210,125 @@ def import_playlist(request):
         "tracks": tracks,
         "matches": matches,
     })
+
+
+def _read_json(request):
+    try:
+        return json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return None
+
+
+def _conversation_json(conversation):
+    return {
+        "id": conversation.pk,
+        "messages": [
+            {
+                "id": m.id,
+                "sender_id": m.sender_id,
+                "body": m.body,
+                "song": {"id": m.song_id, "name": m.song_name, "artists": m.song_artists} if m.song_id else None,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in chat.visible_messages(conversation)
+        ],
+        "typing": chat.bot_is_typing(conversation),
+    }
+
+
+@csrf_exempt
+@require_POST
+def start_conversation(request):
+    """POST {"user_id": me, "other_user_id": them}: open (or reopen) a chat."""
+    body = _read_json(request) or {}
+    user = get_object_or_404(User, pk=body.get("user_id"))
+    other = get_object_or_404(User, pk=body.get("other_user_id"))
+    if user.pk == other.pk:
+        return JsonResponse({"error": "You can't chat with yourself"}, status=400)
+    conversation = chat.get_or_create_conversation(user, other)
+    return JsonResponse({**_conversation_json(conversation), "other": {"id": other.pk, "name": other.name}})
+
+
+@csrf_exempt
+def conversation_messages(request, conversation_id):
+    """GET ?viewer=<user id>: all messages so far, and the viewer's notices
+    for this chat count as read. POST {"sender_id", "body"} sends a message;
+    {"sender_id", "track_id"} shares a song from the sender's list."""
+    conversation = get_object_or_404(Conversation, pk=conversation_id)
+    viewer_id = request.GET.get("viewer")
+    if request.method == "POST":
+        body = _read_json(request) or {}
+        text = (body.get("body") or "").strip()
+        sender_id = body.get("sender_id")
+        if sender_id not in (conversation.user_a_id, conversation.user_b_id):
+            return JsonResponse({"error": "Sender isn't part of this chat"}, status=403)
+        sender = User.objects.get(pk=sender_id)
+        song = None
+        if track_id := body.get("track_id"):
+            song = chat.find_song(sender, str(track_id))
+            if song is None:
+                return JsonResponse({"error": "That song isn't in your playlist"}, status=400)
+        elif not text:
+            return JsonResponse({"error": "Message is empty"}, status=400)
+        if len(text) > chat.MAX_MESSAGE_LENGTH:
+            return JsonResponse({"error": f"Messages are limited to {chat.MAX_MESSAGE_LENGTH} characters"}, status=400)
+        chat.send_message(conversation, sender, text, song=song)
+        viewer_id = sender_id
+    elif request.method != "GET":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    if str(viewer_id) in (str(conversation.user_a_id), str(conversation.user_b_id)):
+        notifications.mark_conversation_read(User(pk=int(viewer_id)), conversation)
+        notifications.touch_last_seen(viewer_id)
+    return JsonResponse(_conversation_json(conversation))
+
+
+NOTIFICATIONS_SHOWN = 20
+
+
+@csrf_exempt
+def user_notifications(request, user_id):
+    """GET: latest notifications and unread count. POST: mark all read."""
+    user = get_object_or_404(User, pk=user_id)
+    if request.method == "POST":
+        notifications.mark_all_read(user)
+    elif request.method != "GET":
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    notifications.touch_last_seen(user.pk)  # the page checks in here every few seconds
+    items = notifications.visible(user).select_related("from_user")[:NOTIFICATIONS_SHOWN]
+    return JsonResponse({
+        "unread": notifications.visible(user).filter(read=False).count(),
+        "notifications": [
+            {
+                "id": n.id,
+                "kind": n.kind,
+                "text": n.text,
+                "from_user": {"id": n.from_user.pk, "name": n.from_user.name} if n.from_user else None,
+                "conversation_id": n.conversation_id,
+                "created_at": n.created_at.isoformat(),
+                "read": n.read,
+            }
+            for n in items
+        ],
+    })
+
+
+@csrf_exempt
+def user_email_alerts(request, user_id):
+    """GET: whether email alerts are available and this user's status.
+    POST {"email": "..."}: sign up; AWS sends a confirmation email first."""
+    user = get_object_or_404(User, pk=user_id)
+    if not email_alerts.available():
+        return JsonResponse({"available": False})
+    try:
+        if request.method == "POST":
+            email = ((_read_json(request) or {}).get("email") or "").strip()
+            state = email_alerts.subscribe(email)
+            user.email = email
+            user.save(update_fields=["email"])
+        elif request.method == "GET":
+            state = email_alerts.status(user.email)
+        else:
+            return JsonResponse({"error": "Method not allowed"}, status=405)
+    except email_alerts.EmailAlertError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"available": True, "email": user.email, "status": state})

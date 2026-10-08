@@ -96,7 +96,104 @@
     .other { background: var(--surface); border-radius: var(--radius); padding: 14px; }
     .other .name { font-weight: 700; }
 
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .bell-wrap { position: relative; }
+    .bell {
+      position: relative; background: var(--surface); color: var(--text);
+      width: 42px; height: 42px; padding: 0; display: grid; place-items: center;
+    }
+    .bell:hover { background: var(--surface-2); }
+    .bell svg { width: 20px; height: 20px; }
+    .badge {
+      position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px;
+      border-radius: 999px; background: var(--error); color: #fff;
+      font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+    }
+    .notif-panel {
+      position: absolute; right: 0; top: 50px; z-index: 20; width: 320px; max-width: calc(100vw - 32px);
+      background: var(--surface); border: 1px solid var(--surface-2); border-radius: var(--radius);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); overflow: hidden;
+    }
+    .notif-panel h3 { margin: 0; padding: 12px 14px; font-size: 14px; border-bottom: 1px solid var(--surface-2); }
+    .notif-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+    .notif-list li { border-bottom: 1px solid var(--surface-2); }
+    .notif-list li:last-child { border-bottom: 0; }
+    .notif-item {
+      display: block; width: 100%; text-align: left; background: none; color: var(--text);
+      border-radius: 0; padding: 10px 14px; font-weight: 400; font-size: 14px;
+    }
+    .notif-item:hover { background: var(--surface-2); }
+    .notif-item.unread { background: rgba(30, 215, 96, 0.08); }
+    .notif-item.unread::before { content: "●"; color: var(--accent); margin-right: 6px; font-size: 10px; vertical-align: 2px; }
+    .notif-time { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .notif-empty { padding: 18px 14px; color: var(--muted); font-size: 14px; }
+    .email-alerts { border-top: 1px solid var(--surface-2); padding: 12px 14px; font-size: 13px; }
+    .email-alerts form { display: flex; gap: 6px; margin-top: 8px; }
+    .email-alerts input { flex: 1; min-width: 0; padding: 7px 12px; font-size: 13px; }
+    .email-alerts button { padding: 7px 12px; font-size: 13px; }
+    .email-status { color: var(--muted); margin-top: 6px; }
+    .email-status.on { color: var(--accent); }
+    .email-status.problem { color: var(--error); }
+
+    .toast {
+      position: fixed; left: 16px; bottom: 16px; z-index: 30; max-width: 320px;
+      background: var(--surface-2); color: var(--text); border-left: 4px solid var(--accent);
+      border-radius: var(--radius); padding: 12px 16px; text-align: left; font-weight: 400;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); animation: slide-in 0.25s ease-out;
+    }
+    .toast strong { display: block; font-size: 13px; color: var(--accent); }
+    @keyframes slide-in { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    .message-btn { margin-top: 14px; padding: 8px 18px; font-size: 14px; }
+    .other .message-btn { margin-top: 8px; padding: 6px 14px; font-size: 13px; }
+
+    .chat {
+      position: fixed; right: 16px; bottom: 16px; z-index: 10;
+      width: 340px; height: 460px; max-height: calc(100vh - 32px);
+      background: var(--surface); border: 1px solid var(--surface-2); border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--surface-2); }
+    .chat-head .avatar { width: 32px; height: 32px; font-size: 15px; }
+    .chat-head .who { flex: 1; font-weight: 700; }
+    .chat-close { background: none; color: var(--muted); padding: 4px 8px; font-size: 20px; line-height: 1; }
+    .chat-close:hover { color: var(--text); }
+    .chat-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+    .bubble { max-width: 80%; padding: 8px 12px; border-radius: 16px; word-wrap: break-word; white-space: pre-wrap; }
+    .bubble.mine { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+    .bubble.theirs { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+    .chat-empty { margin: auto; text-align: center; color: var(--muted); font-size: 14px; }
+    .typing { color: var(--muted); font-size: 13px; padding: 0 14px 6px; min-height: 1.5em; }
+    .bubble.song { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; white-space: normal; }
+    .bubble.song .note {
+      grid-row: span 2; width: 34px; height: 34px; border-radius: 6px;
+      display: grid; place-items: center; font-size: 16px; background: rgba(0, 0, 0, 0.25);
+    }
+    .bubble.song .song-title { font-weight: 700; }
+    .bubble.song .song-artists { font-size: 13px; opacity: 0.75; }
+    .bubble.song .song-label { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+
+    .song-picker { border-top: 1px solid var(--surface-2); padding: 10px 10px 0; }
+    .song-picker input { width: 100%; padding: 8px 14px; font-size: 14px; }
+    .song-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 180px; overflow-y: auto; }
+    .song-option {
+      display: block; width: 100%; text-align: left; background: none; color: var(--text);
+      border-radius: 6px; padding: 6px 8px; font-weight: 400; font-size: 14px;
+    }
+    .song-option:hover, .song-option:focus-visible { background: var(--surface-2); outline: none; }
+    .song-option span { display: block; color: var(--muted); font-size: 12px; }
+    .song-none { color: var(--muted); font-size: 13px; padding: 6px 8px; }
+
+    .chat-form { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--surface-2); }
+    .chat-form .song-btn { background: var(--surface-2); color: var(--text); padding: 10px 12px; }
+    .chat-form .song-btn[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); }
+    .chat-form input { flex: 1; min-width: 0; padding: 10px 14px; }
+    .chat-form button { padding: 10px 16px; }
+
     @media (max-width: 560px) {
+      .chat { left: 8px; right: 8px; bottom: 8px; width: auto; }
+      .toast { left: 8px; right: 8px; max-width: none; }
       .best { grid-template-columns: 1fr; }
       .tracks .genre { display: none; }
       .tracks li { grid-template-columns: 28px 1fr; }
@@ -105,7 +202,29 @@
 </head>
 <body>
 <main>
-  <h1>Spot<span>a</span>friend</h1>
+  <div class="topbar">
+    <h1>Spot<span>a</span>friend</h1>
+    <div class="bell-wrap hidden" id="bell-wrap">
+      <button class="bell" id="bell" type="button" aria-label="Notifications" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="badge hidden" id="badge"></span>
+      </button>
+      <div class="notif-panel hidden" id="notif-panel">
+        <h3>Notifications</h3>
+        <ul class="notif-list" id="notif-list"></ul>
+        <div class="email-alerts hidden" id="email-alerts">
+          <strong>Email me when I'm away</strong>
+          <form id="email-form">
+            <input id="email-input" type="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address" required>
+            <button type="submit">Save</button>
+          </form>
+          <div class="email-status" id="email-status" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
   <p class="tagline">Find your people through the music you love.</p>
 
   <form id="form">
@@ -132,6 +251,27 @@
     </div>
   </section>
 </main>
+
+<aside class="chat hidden" id="chat" aria-label="Chat">
+  <div class="chat-head">
+    <div class="avatar" id="chat-avatar"></div>
+    <div class="who" id="chat-name"></div>
+    <button class="chat-close" id="chat-close" type="button" aria-label="Close chat">×</button>
+  </div>
+  <div class="chat-log" id="chat-log" aria-live="polite"></div>
+  <div class="typing" id="chat-typing"></div>
+  <div class="song-picker hidden" id="song-picker">
+    <input id="song-search" placeholder="Search your playlist…" autocomplete="off" aria-label="Search your playlist">
+    <ul class="song-list" id="song-list"></ul>
+  </div>
+  <form class="chat-form" id="chat-form">
+    <button class="song-btn" id="song-btn" type="button" aria-label="Share a song from your playlist" aria-expanded="false" title="Share a song">🎵</button>
+    <input id="chat-input" placeholder="Say hi…" autocomplete="off" maxlength="1000">
+    <button type="submit">Send</button>
+  </form>
+</aside>
+
+<div id="toast-slot"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -198,13 +338,15 @@ function renderMatches(matches) {
         reasonPills(best),
         best.shared_tracks.length ? el("div", {}, el("h3", {}, `${best.shared_tracks.length} songs you share`), el("div", {}, sharedSummary(best.shared_tracks))) : null,
         el("h3", {}, `${best.name}'s top songs`),
-        el("ol", {}, ...best.top_songs.map((s) => el("li", {}, `${s.name} `, el("span", { class: "muted" }, `— ${s.artists.join(", ")}`))))))
+        el("ol", {}, ...best.top_songs.map((s) => el("li", {}, `${s.name} `, el("span", { class: "muted" }, `— ${s.artists.join(", ")}`)))),
+        messageButton(best)))
   );
   $("others").replaceChildren(...rest.map((m) =>
     el("div", { class: "other" },
       el("div", { class: "name" }, m.name),
       el("div", { class: "score" }, `${Math.round(m.score)}% match`),
-      reasonPills(m))
+      reasonPills(m),
+      messageButton(m))
   ));
   $("others-wrap").classList.toggle("hidden", rest.length === 0);
 }
@@ -223,6 +365,10 @@ $("form").addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Something went wrong");
+    me = data.user;
+    myTracks = data.tracks;
+    closeChat();
+    startNotifications();
 
     // Reveal in two beats: the playlist first, then who matched.
     $("match").classList.add("hidden");
@@ -240,6 +386,299 @@ $("form").addEventListener("submit", async (e) => {
     $("go").disabled = false;
   }
 });
+
+// ---- Chat ----------------------------------------------------------------
+// The open chat checks for new messages every POLL_MS.
+const POLL_MS = 1500;
+let me = null;          // the user created by the last import
+let myTracks = [];      // that user's playlist songs, for sharing in chat
+let openChat = null;    // { id, other, lastShown }
+let pollTimer = null;
+
+function messageButton(match) {
+  const btn = el("button", { class: "message-btn", type: "button" }, `Message ${match.name}`);
+  btn.onclick = () => poll(() => startChat(match.user_id));
+  return btn;
+}
+
+async function api(url, body) {
+  const res = await fetch(url, body === undefined ? {} : {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = res.headers.get("Content-Type")?.includes("json") ? await res.json() : {};
+  if (!res.ok) throw Object.assign(new Error(data.error || "Something went wrong"), { status: res.status });
+  return data;
+}
+
+// Background checks (chat, notifications) shouldn't throw into the console.
+// A 404 means the server restarted and forgot this user, so start over.
+async function poll(fn) {
+  try {
+    await fn();
+  } catch (err) {
+    if (err.status === 404 && me) resetSession();
+  }
+}
+
+function resetSession() {
+  me = null;
+  closeChat();
+  clearInterval(notifTimer);
+  closeNotifPanel();
+  $("bell-wrap").classList.add("hidden");
+  $("toast-slot").replaceChildren();
+  $("error").textContent = "The server restarted, so please submit your playlist again.";
+}
+
+async function startChat(otherUserId) {
+  if (!me) return;
+  const data = await api("/api/conversations/", { user_id: me.id, other_user_id: otherUserId });
+  openChat = { id: data.id, other: data.other, lastShown: null };
+  $("chat-avatar").textContent = data.other.name[0];
+  $("chat-name").textContent = data.other.name;
+  $("chat").classList.remove("hidden");
+  renderChat(data);
+  $("chat-input").focus();
+  poll(async () => { await refreshChat(); await pollNotifications(); });  // marks this chat's notices read
+  clearInterval(pollTimer);
+  pollTimer = setInterval(() => poll(refreshChat), POLL_MS);
+}
+
+function closeChat() {
+  closeSongPicker();
+  clearInterval(pollTimer);
+  openChat = null;
+  $("chat").classList.add("hidden");
+}
+
+async function refreshChat() {
+  if (!openChat) return;
+  const id = openChat.id;
+  const data = await api(`/api/conversations/${id}/messages/?viewer=${me.id}`);
+  if (openChat && openChat.id === id) renderChat(data);
+}
+
+function renderChat(data) {
+  $("chat-typing").textContent = data.typing ? `${openChat.other.name} is typing…` : "";
+  const last = data.messages.length ? data.messages[data.messages.length - 1].id : null;
+  if (last === openChat.lastShown && $("chat-log").childElementCount) return;  // nothing new
+  openChat.lastShown = last;
+  const log = $("chat-log");
+  if (!data.messages.length) {
+    log.replaceChildren(el("div", { class: "chat-empty" }, `Start the conversation with ${openChat.other.name}.`));
+    return;
+  }
+  log.replaceChildren(...data.messages.map((m) => {
+    const side = m.sender_id === me.id ? "mine" : "theirs";
+    if (!m.song) return el("div", { class: `bubble ${side}` }, m.body);
+    return el("div", { class: `bubble song ${side}` },
+      el("div", { class: "song-label" }, "Shared a song"),
+      el("div", { class: "note", "aria-hidden": "true" }, "♪"),
+      el("div", { class: "song-title" }, m.song.name),
+      el("div", { class: "song-artists" }, m.song.artists));
+  }));
+  log.scrollTop = log.scrollHeight;
+}
+
+$("chat-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("chat-input").value.trim();
+  if (!text || !openChat) return;
+  $("chat-input").value = "";
+  try {
+    const data = await api(`/api/conversations/${openChat.id}/messages/`, { sender_id: me.id, body: text });
+    renderChat(data);
+  } catch (err) {
+    $("chat-input").value = text;
+    $("chat-typing").textContent = err.message;
+  }
+});
+
+$("chat-close").onclick = closeChat;
+
+// ---- Sharing songs in chat ------------------------------------------------
+function openSongPicker() {
+  $("song-picker").classList.remove("hidden");
+  $("song-btn").setAttribute("aria-expanded", "true");
+  $("song-search").value = "";
+  renderSongList();
+  $("song-search").focus();
+}
+
+function closeSongPicker() {
+  $("song-picker").classList.add("hidden");
+  $("song-btn").setAttribute("aria-expanded", "false");
+}
+
+function renderSongList() {
+  const q = $("song-search").value.trim().toLowerCase();
+  const songs = myTracks.filter((t) =>
+    !q || t.name.toLowerCase().includes(q) || t.artists.some((a) => a.toLowerCase().includes(q)));
+  if (!songs.length) {
+    $("song-list").replaceChildren(el("li", { class: "song-none" }, "No songs match."));
+    return;
+  }
+  $("song-list").replaceChildren(...songs.map((t) => {
+    const option = el("button", { class: "song-option", type: "button" }, t.name, el("span", {}, t.artists.join(", ")));
+    option.onclick = () => shareSong(t);
+    return el("li", {}, option);
+  }));
+}
+
+async function shareSong(track) {
+  if (!openChat) return;
+  closeSongPicker();
+  try {
+    const data = await api(`/api/conversations/${openChat.id}/messages/`, { sender_id: me.id, track_id: track.id });
+    renderChat(data);
+  } catch (err) {
+    if (err.status === 404) return resetSession();
+    $("chat-typing").textContent = err.message;
+  }
+  $("chat-input").focus();
+}
+
+$("song-btn").onclick = () =>
+  $("song-picker").classList.contains("hidden") ? openSongPicker() : closeSongPicker();
+$("song-search").addEventListener("input", renderSongList);
+$("song-search").addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSongPicker(); $("chat-input").focus(); } });
+
+// ---- Notifications -------------------------------------------------------
+const NOTIFY_POLL_MS = 2000;
+const TOAST_MS = 5000;
+let notifTimer = null;
+let seenNotifications = new Set();
+let renderedSignature = null;
+
+function timeAgo(iso) {
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+  if (secs < 60) return "just now";
+  if (secs < 3600) return `${Math.floor(secs / 60)} min ago`;
+  return `${Math.floor(secs / 3600)} h ago`;
+}
+
+async function startNotifications() {
+  clearInterval(notifTimer);
+  seenNotifications = new Set();
+  $("bell-wrap").classList.remove("hidden");
+  await poll(() => pollNotifications({ quiet: true }));  // nothing pops up for what's already there
+  notifTimer = setInterval(() => poll(pollNotifications), NOTIFY_POLL_MS);
+}
+
+async function pollNotifications({ quiet = false } = {}) {
+  if (!me) return;
+  const userId = me.id;
+  const data = await api(`/api/users/${userId}/notifications/`);
+  if (!me || me.id !== userId) return;  // a new import happened meanwhile
+  renderNotifications(data);
+  for (const n of data.notifications) {
+    if (seenNotifications.has(n.id)) continue;
+    seenNotifications.add(n.id);
+    const chatIsOpen = openChat && openChat.id === n.conversation_id;
+    if (!quiet && n.kind === "message" && !n.read && !chatIsOpen) showToast(n);
+  }
+}
+
+function renderNotifications(data) {
+  $("badge").textContent = data.unread > 9 ? "9+" : String(data.unread);
+  $("badge").classList.toggle("hidden", data.unread === 0);
+  $("bell").setAttribute("aria-label", `Notifications (${data.unread} unread)`);
+  // Only redraw the list when it changed, so it doesn't shift under the mouse.
+  const signature = data.notifications.map((n) => `${n.id}:${n.read}`).join(",");
+  if (signature === renderedSignature && $("notif-list").childElementCount) return;
+  renderedSignature = signature;
+  if (!data.notifications.length) {
+    $("notif-list").replaceChildren(el("li", { class: "notif-empty" }, "Nothing yet."));
+    return;
+  }
+  $("notif-list").replaceChildren(...data.notifications.map((n) => {
+    const item = el("button", { class: `notif-item ${n.read ? "" : "unread"}`, type: "button" },
+      n.text, el("span", { class: "notif-time" }, timeAgo(n.created_at)));
+    item.onclick = () => openFromNotification(n);
+    return el("li", {}, item);
+  }));
+}
+
+function openFromNotification(n) {
+  closeNotifPanel();
+  if (n.from_user) poll(() => startChat(n.from_user.id));
+}
+
+function showToast(n) {
+  const toast = el("button", { class: "toast", type: "button" }, el("strong", {}, "New message"), n.text);
+  toast.onclick = () => { toast.remove(); openFromNotification(n); };
+  $("toast-slot").replaceChildren(toast);
+  setTimeout(() => toast.remove(), TOAST_MS);
+}
+
+function closeNotifPanel() {
+  $("notif-panel").classList.add("hidden");
+  $("bell").setAttribute("aria-expanded", "false");
+}
+
+$("bell").onclick = async (e) => {
+  e.stopPropagation();
+  const opening = $("notif-panel").classList.contains("hidden");
+  if (!opening) return closeNotifPanel();
+  $("notif-panel").classList.remove("hidden");
+  $("bell").setAttribute("aria-expanded", "true");
+  loadEmailAlerts();
+  // Show what was unread, then clear the badge.
+  await poll(async () => {
+    renderNotifications(await api(`/api/users/${me.id}/notifications/`));
+    const cleared = await api(`/api/users/${me.id}/notifications/`, {});
+    $("badge").classList.add("hidden");
+    $("bell").setAttribute("aria-label", `Notifications (${cleared.unread} unread)`);
+  });
+};
+
+$("notif-panel").addEventListener("click", (e) => e.stopPropagation());
+
+// ---- Email alerts (AWS SNS) ---------------------------------------------
+const EMAIL_STATUS_TEXT = {
+  none: () => "",
+  pending: (email) => `Almost there: click the confirmation link AWS emailed to ${email}.`,
+  on: (email) => `Email alerts are on for ${email}.`,
+};
+
+function showEmailStatus(data) {
+  $("email-alerts").classList.toggle("hidden", !data.available);
+  if (!data.available) return;
+  if (data.email && document.activeElement !== $("email-input")) $("email-input").value = data.email;
+  $("email-status").className = `email-status ${data.status === "on" ? "on" : ""}`;
+  $("email-status").textContent = (EMAIL_STATUS_TEXT[data.status] || EMAIL_STATUS_TEXT.none)(data.email);
+}
+
+function showEmailProblem(message) {
+  $("email-status").className = "email-status problem";
+  $("email-status").textContent = message;
+}
+
+async function loadEmailAlerts() {
+  if (!me) return;
+  try {
+    showEmailStatus(await api(`/api/users/${me.id}/email-alerts/`));
+  } catch (err) {
+    showEmailProblem(err.message);
+  }
+}
+
+$("email-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = $("email-form").querySelector("button");
+  button.disabled = true;
+  try {
+    showEmailStatus(await api(`/api/users/${me.id}/email-alerts/`, { email: $("email-input").value.trim() }));
+  } catch (err) {
+    showEmailProblem(err.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+document.addEventListener("click", closeNotifPanel);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotifPanel(); });
 
 loadDemoPicks();
 </script>
