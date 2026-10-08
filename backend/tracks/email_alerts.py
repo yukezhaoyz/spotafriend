@@ -5,10 +5,14 @@ filter, so SNS only delivers messages tagged with that person's alert key.
 The key comes from the email address itself, so it stays the same across
 server restarts (when user ids get reused).
 
-Set SPOTAFRIEND_EMAIL_ALERTS when starting the server:
+Set SPOTAFRIEND_EMAIL_ALERTS (in .env or the terminal):
   off (default)  no email alerts
   log            print the emails that would be sent, without calling AWS
   sns            send through AWS SNS, using the usual AWS credentials
+
+In sns mode, SPOTAFRIEND_SNS_TOPIC_ARN points at an existing topic (e.g. one
+a teammate created). Without it, a topic named SPOTAFRIEND_SNS_TOPIC is
+looked up or created in your own AWS account.
 """
 import hashlib
 import json
@@ -23,8 +27,12 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 MODE = os.environ.get("SPOTAFRIEND_EMAIL_ALERTS", "off").lower()
+TOPIC_ARN = os.environ.get("SPOTAFRIEND_SNS_TOPIC_ARN")
 TOPIC_NAME = os.environ.get("SPOTAFRIEND_SNS_TOPIC", "spotafriend-alerts")
-REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+# A topic ARN names its region (arn:aws:sns:<region>:<account>:<name>), and
+# SNS only accepts it from a client in that region.
+REGION = (os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+          or (TOPIC_ARN.split(":")[3] if TOPIC_ARN and TOPIC_ARN.count(":") >= 5 else None))
 SITE_URL = os.environ.get("SPOTAFRIEND_SITE_URL", "http://localhost:8000")
 # Someone whose page hasn't checked in for this long counts as away.
 AWAY_AFTER = timedelta(seconds=int(os.environ.get("SPOTAFRIEND_AWAY_SECONDS", "60")))
@@ -51,8 +59,8 @@ def _sns():
         import boto3
 
         _client = boto3.client("sns", region_name=REGION) if REGION else boto3.client("sns")
-        # Returns the existing topic if it's already there.
-        _topic_arn = _client.create_topic(Name=TOPIC_NAME)["TopicArn"]
+        # create_topic returns the existing topic if it's already there.
+        _topic_arn = TOPIC_ARN or _client.create_topic(Name=TOPIC_NAME)["TopicArn"]
     return _client, _topic_arn
 
 
