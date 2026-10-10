@@ -135,6 +135,16 @@
     .email-status.on { color: var(--accent); }
     .email-status.problem { color: var(--error); }
 
+    .sns-post { margin-top: 48px; padding: 16px; background: var(--surface); border-radius: 12px; }
+    .sns-post h2 { margin-top: 0; }
+    .sns-post form { display: flex; flex-direction: column; gap: 8px; }
+    .sns-post textarea {
+      background: var(--surface-2); color: var(--text); border: 1px solid transparent; outline: none;
+      font: inherit; padding: 10px 14px; border-radius: 12px; min-height: 80px; resize: vertical;
+    }
+    .sns-post textarea:focus { border-color: var(--accent); }
+    .sns-post button { align-self: flex-start; }
+
     .toast {
       position: fixed; left: 16px; bottom: 16px; z-index: 30; max-width: 320px;
       background: var(--surface-2); color: var(--text); border-left: 4px solid var(--accent);
@@ -257,6 +267,16 @@
       <h2 style="margin-top:28px">Also on your wavelength</h2>
       <div class="others" id="others"></div>
     </div>
+  </section>
+
+  <section class="sns-post">
+    <h2>Post to the SNS topic</h2>
+    <form id="sns-form">
+      <input id="sns-subject" placeholder="Subject (optional)" maxlength="100" autocomplete="off">
+      <textarea id="sns-message" placeholder="Message" required></textarea>
+      <button type="submit">Post</button>
+    </form>
+    <div class="email-status" id="sns-status" role="status"></div>
   </section>
 </main>
 
@@ -763,6 +783,25 @@ $("email-form").addEventListener("submit", async (e) => {
     showEmailStatus(await api(`/api/users/${me.id}/email-alerts/`, { email: $("email-input").value.trim() }));
   } catch (err) {
     showEmailProblem(err.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+$("sns-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const button = $("sns-form").querySelector("button");
+  button.disabled = true;
+  try {
+    const data = await api("/api/sns/publish/", {
+      subject: $("sns-subject").value.trim(),
+      message: $("sns-message").value.trim(),
+    });
+    $("sns-status").className = "email-status on";
+    $("sns-status").textContent = `Posted (message id ${data.message_id})`;
+    $("sns-message").value = "";
+  } catch (err) {
+    $("sns-status").className = "email-status problem";
+    $("sns-status").textContent = err.message;
   } finally {
     button.disabled = false;
   }

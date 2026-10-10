@@ -367,3 +367,16 @@ def user_email_alerts(request, user_id):
     except email_alerts.EmailAlertError as e:
         return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"available": True, "email": user.email, "status": state})
+
+
+@csrf_exempt
+@require_POST
+def sns_publish(request):
+    """POST {"subject": "...", "message": "..."}: post a message to the SNS topic."""
+    body = _read_json(request) or {}
+    try:
+        message_id = email_alerts.post_to_topic(
+            (body.get("subject") or "").strip(), (body.get("message") or "").strip())
+    except email_alerts.EmailAlertError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"message_id": message_id})

@@ -16,4 +16,5 @@ urlpatterns = [
     path("users/<int:user_id>/matches/", views.user_matches),
     path("users/<int:user_id>/notifications/", views.user_notifications),
     path("users/<int:user_id>/email-alerts/", views.user_email_alerts),
+    path("sns/publish/", views.sns_publish),
 ]
