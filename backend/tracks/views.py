@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from . import chat, email_alerts, match_feed, matching, notifications, seed
+from . import chat, chat_feed, email_alerts, matching, notifications, seed
 from .playlists import PlaylistNotFound, fetch_playlist, normalize_playlist_url, track_ids_from_payload
 from .loader import run_readonly_sql
 from .models import Conversation, MockPlaylist, Notification, Track, User, UserTrack
@@ -138,7 +138,7 @@ def playlists(request):
 
 
 def index(request):
-    return render(request, "tracks/index.html")
+    return render(request, "tracks/index.html", {"appsync": chat_feed.browser_config()})
 
 
 MATCHES_SHOWN = 4
@@ -196,7 +196,6 @@ def import_playlist(request):
         notifications.notify_match(user, top, matches[0]["score"])
         if top.is_bot:
             chat.queue_greeting(bot=top, human=user)
-    announcement = match_feed.publish_match(user, matches[0], str(body.get("client_id") or "")) if matches else None
     for m in matches:
         their_ids = UserTrack.objects.filter(user_id=m["user_id"]).values_list("track_id", flat=True)
         their_songs = {}
@@ -216,7 +215,6 @@ def import_playlist(request):
         "playlist": {"url": url, "name": payload.get("name", "Your playlist")},
         "tracks": tracks,
         "matches": matches,
-        "announcement": announcement,
     })
 
 
@@ -377,24 +375,5 @@ def user_email_alerts(request, user_id):
     return JsonResponse({"available": True, "email": user.email, "status": state})
 
 
-@csrf_exempt
-@require_POST
-def sns_publish(request):
-    """POST {"subject": "...", "message": "..."}: post a message to the SNS topic."""
-    body = _read_json(request) or {}
-    try:
-        message_id = email_alerts.post_to_topic(
-            (body.get("subject") or "").strip(), (body.get("message") or "").strip())
-    except email_alerts.EmailAlertError as e:
-        return JsonResponse({"error": str(e)}, status=400)
-    return JsonResponse({"message_id": message_id})
-
-
-@require_GET
-def match_feed_poll(request):
-    """GET ?client_id=...: a look at the match messages on the SQS queue. The
-    ones this client sent are flagged "mine". Nothing is removed from the queue."""
-    try:
-        return JsonResponse({"enabled": match_feed.available(), "messages": match_feed.poll(request.GET.get("client_id", ""))})
-    except Exception as e:
-        return JsonResponse({"error": f"Couldn't read the match queue: {e}"}, status=502)
+def chat_page(request):
+    return render(request, "tracks/chat.html", {"appsync": chat_feed.browser_config()})

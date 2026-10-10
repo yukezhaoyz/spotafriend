@@ -82,6 +82,7 @@ These are **made-up playlists stored in the app**, not real Spotify playlists; r
 - **Chat requests** with Accept / Decline; messages unlock once accepted.
 - **Chat** with song sharing; made-up listeners accept requests and reply on their own.
 - **Notifications:** a bell with unread count, pop-ups for messages and chat requests.
+- **Live chat (optional):** **Start chat** on a match sends "*name* wants to chat with you" to every open page through AWS AppSync. Both people then chat live on a separate page, with messages going over an AppSync WebSocket.
 - **Email alerts (optional)** through AWS SNS for people who are away from the site.
 - **SQL access** to the data for exploring it (read-only).
 
@@ -102,7 +103,7 @@ cp .env.example .env
 | `SPOTAFRIEND_EMAIL_ALERTS` | Email alerts: `off`, `log` (print instead of sending) or `sns` (send via AWS) | `off` |
 | `SPOTAFRIEND_SNS_TOPIC_ARN` | The SNS topic to send through, e.g. one a teammate created | empty (use `SPOTAFRIEND_SNS_TOPIC`) |
 | `SPOTAFRIEND_SNS_TOPIC` | Topic name to look up or create in your own AWS account | `spotafriend-alerts` |
-| `SPOTAFRIEND_SQS_QUEUE_URL` | SQS queue subscribed to the topic. Importing a playlist announces a fake match through SNS, and the page reads it back from this queue every second. Off while empty | empty |
+| `SPOTAFRIEND_APPSYNC_HTTP_DOMAIN`, `SPOTAFRIEND_APPSYNC_REALTIME_DOMAIN`, `SPOTAFRIEND_APPSYNC_API_KEY` | The AppSync Event API that live chat runs on (see "Live chat" below). Off while empty | empty |
 | `AWS_REGION` | AWS region | from the topic ARN, then `~/.aws/config` |
 | `SPOTAFRIEND_AWAY_SECONDS` | Seconds without activity before someone counts as away | `60` |
 | `SPOTAFRIEND_SITE_URL` | Link put in alert emails | `http://localhost:8000` |
@@ -114,6 +115,14 @@ A setting typed in the terminal wins over `.env`, which is handy for one-off run
 ```bash
 SPOTAFRIEND_EMAIL_ALERTS=log ../.venv/bin/python manage.py runserver
 ```
+
+**How live chat works:** it runs on an [AWS AppSync Events](https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-welcome.html) API. Create one once (it reuses the API if it exists and makes a new API key each run), then paste the three lines it prints into `.env`:
+
+```bash
+../.venv/bin/python manage.py appsync_setup
+```
+
+Clicking **Start chat** on a match opens `/chat/` in a new tab and publishes a `CHAT_REQUEST` with a new room id to the `/chat/requests` channel. Every other open page shows "*name* wants to chat with you" with an **Open chat** button that joins the same room. Both chat pages hold a WebSocket to AppSync, subscribe to `/chat/rooms/<room id>` and publish messages to it, so messages arrive instantly. Nothing is stored: when someone opens the chat, the page already there sends them the messages they missed, and the chat is gone once both pages close. Requests go to everyone with the site open, not only the person named. To chat across two computers, give both the same three settings. The API key is sent to the browser, so anyone who can open the site can use it; that's fine for a local demo and not beyond. Creating the API needs `appsync:CreateApi`, `appsync:ListApis`, `appsync:CreateChannelNamespace`, `appsync:ListChannelNamespaces` and `appsync:CreateApiKey`; chatting needs no AWS login at all.
 
 **How email alerts work:** a user enters their email in the bell panel, AWS sends them a one-time confirmation link, and from then on messages and chat requests that arrive while they're away are emailed to them. Each user's subscription is filtered so they only get their own alerts.
 
@@ -254,11 +263,13 @@ spotafriend/
         ├── chat.py              # chat requests, messages, bot replies
         ├── notifications.py     # the bell and pop-ups
         ├── email_alerts.py      # AWS SNS email alerts
-        ├── match_feed.py        # fake-match announcements over SNS -> SQS
+        ├── chat_feed.py         # live chat settings (AWS AppSync Events)
         ├── middleware.py        # one request at a time (see Architecture)
         ├── views.py, urls.py    # the API
-        ├── templates/tracks/index.html   # the whole web page
-        └── management/commands/sql.py    # `manage.py sql`
+        ├── templates/tracks/index.html   # the main web page
+        ├── templates/tracks/chat.html    # the live chat page
+        ├── templates/tracks/_appsync.html  # AppSync WebSocket client both pages use
+        └── management/commands/   # `manage.py sql`, `manage.py appsync_setup`
 ```
 
 ---

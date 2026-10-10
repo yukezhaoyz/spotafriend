@@ -135,16 +135,6 @@
     .email-status.on { color: var(--accent); }
     .email-status.problem { color: var(--error); }
 
-    .sns-post { margin-top: 48px; padding: 16px; background: var(--surface); border-radius: 12px; }
-    .sns-post h2 { margin-top: 0; }
-    .sns-post form { display: flex; flex-direction: column; gap: 8px; }
-    .sns-post textarea {
-      background: var(--surface-2); color: var(--text); border: 1px solid transparent; outline: none;
-      font: inherit; padding: 10px 14px; border-radius: 12px; min-height: 80px; resize: vertical;
-    }
-    .sns-post textarea:focus { border-color: var(--accent); }
-    .sns-post button { align-self: flex-start; }
-
     .toast {
       position: fixed; left: 16px; bottom: 16px; z-index: 30; max-width: 320px;
       background: var(--surface-2); color: var(--text); border-left: 4px solid var(--accent);
@@ -158,6 +148,11 @@
 
     .message-btn { margin-top: 14px; padding: 8px 18px; font-size: 14px; }
     .other .message-btn { margin-top: 8px; padding: 6px 14px; font-size: 13px; }
+    .match-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .message-btn.secondary { background: var(--surface-2); color: var(--text); }
+    .message-btn.secondary:hover { background: var(--muted); color: var(--accent-ink); }
+    .notif-feed { padding: 10px 14px; font-size: 14px; }
+    .notif-feed.unread { background: rgba(30, 215, 96, 0.08); }
 
     .chat {
       position: fixed; right: 16px; bottom: 16px; z-index: 10;
@@ -269,15 +264,6 @@
     </div>
   </section>
 
-  <section class="sns-post">
-    <h2>Post to the SNS topic</h2>
-    <form id="sns-form">
-      <input id="sns-subject" placeholder="Subject (optional)" maxlength="100" autocomplete="off">
-      <textarea id="sns-message" placeholder="Message" required></textarea>
-      <button type="submit">Post</button>
-    </form>
-    <div class="email-status" id="sns-status" role="status"></div>
-  </section>
 </main>
 
 <aside class="chat hidden" id="chat" aria-label="Chat">
@@ -302,6 +288,7 @@
 
 <div id="toast-slot"></div>
 
+{% include "tracks/_appsync.html" %}
 <script>
 const $ = (id) => document.getElementById(id);
 
@@ -368,14 +355,14 @@ function renderMatches(matches) {
         best.shared_tracks.length ? el("div", {}, el("h3", {}, `${best.shared_tracks.length} songs you share`), el("div", {}, sharedSummary(best.shared_tracks))) : null,
         el("h3", {}, `${best.name}'s top songs`),
         el("ol", {}, ...best.top_songs.map((s) => el("li", {}, `${s.name} `, el("span", { class: "muted" }, `— ${s.artists.join(", ")}`)))),
-        messageButton(best)))
+        matchActions(best)))
   );
   $("others").replaceChildren(...rest.map((m) =>
     el("div", { class: "other" },
       el("div", { class: "name" }, m.name),
       el("div", { class: "score" }, `${Math.round(m.score)}% match`),
       reasonPills(m),
-      messageButton(m))
+      matchActions(m))
   ));
   $("others-wrap").classList.toggle("hidden", rest.length === 0);
 }
@@ -390,7 +377,7 @@ $("form").addEventListener("submit", async (e) => {
     const res = await fetch("/api/import/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value, client_id: CLIENT_ID }),
+      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Something went wrong");
@@ -398,7 +385,6 @@ $("form").addEventListener("submit", async (e) => {
     myTracks = data.tracks;
     closeChat();
     startNotifications();
-    startMatchFeed();
 
     // Reveal in two beats: the playlist first, then who matched.
     $("match").classList.add("hidden");
@@ -409,7 +395,6 @@ $("form").addEventListener("submit", async (e) => {
     $("match").classList.remove("hidden");
     await pause(1200);
     renderMatches(data.matches);
-    $("match").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     $("error").textContent = err.message;
   } finally {
@@ -429,6 +414,11 @@ function messageButton(match) {
   const btn = el("button", { class: "message-btn", type: "button" }, `Message ${match.name}`);
   btn.onclick = () => poll(() => startChat(match.user_id));
   return btn;
+}
+
+function matchActions(match) {
+  return el("div", { class: "match-actions" }, messageButton(match),
+    APPSYNC ? startChatButton(match.name, "message-btn secondary") : null);
 }
 
 async function api(url, body) {
@@ -456,7 +446,6 @@ function resetSession() {
   me = null;
   closeChat();
   clearInterval(notifTimer);
-  clearInterval(feedTimer);
   closeNotifPanel();
   $("bell-wrap").classList.add("hidden");
   $("toast-slot").replaceChildren();
@@ -633,58 +622,88 @@ $("song-btn").onclick = () =>
 $("song-search").addEventListener("input", renderSongList);
 $("song-search").addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSongPicker(); $("chat-input").focus(); } });
 
-// ---- Match feed (AWS SNS -> SQS) ---------------------------------------------
-// Importing a playlist announces a (fake) match through AWS. This page reads
-// the queue every second and uses CLIENT_ID to tell its own messages apart.
+// ---- Chat requests in the bell ---------------------------------------------
+// CLIENT_ID tells this page's own requests apart from everyone else's.
 const CLIENT_ID = crypto.randomUUID();
-const FEED_POLL_MS = 1000;
-let feedTimer = null;
-let feedBusy = false;
 const seenFeed = new Set();
+let feedItems = [];  // newest first: { id, text, detail, sentAtMs, read, joinRoom }
 
-function startMatchFeed() {
-  clearInterval(feedTimer);
-  feedTimer = setInterval(pollMatchFeed, FEED_POLL_MS);
-}
-
-// Only messages that reach the queue after this page opened go in the bell.
-const PAGE_OPENED_MS = Date.now();
-const CLOCK_SLACK_MS = 5000;  // this computer's clock vs. AWS's
-let feedItems = [];           // newest first: { id, text, detail, sentAtMs, read }
-
-function addFeedMessage({ id, mine, sentAtMs, notification: n, raw }) {
-  if (sentAtMs < PAGE_OPENED_MS - CLOCK_SLACK_MS) return;
-  const who = mine ? "you" : n && n.fromName ? n.fromName : null;
-  feedItems.unshift({
-    id,
-    text: n ? n.message || JSON.stringify(n) : raw,
-    detail: [who && `from ${who}`, n && n.score != null ? `${n.score}% match` : null].filter(Boolean).join(" · "),
-    sentAtMs,
+function addChatRequest(n) {
+  if (n.clientId === CLIENT_ID) return;  // addressed to the other person
+  const item = {
+    id: n.id,
+    text: n.message,
+    detail: n.fromName ? `from ${n.fromName}` : "",
+    sentAtMs: Number(n.sentAtMs) || Date.now(),
     read: false,
-  });
+    joinRoom: n.roomId ? { room: n.roomId, withName: n.fromName } : null,
+  };
+  feedItems.unshift(item);
   feedItems.sort((a, b) => b.sentAtMs - a.sentAtMs);
   $("bell-wrap").classList.remove("hidden");
   renderNotifications(lastNotifData);
+  if (item.joinRoom) showChatInviteToast(item);
 }
 
-async function pollMatchFeed() {
-  if (feedBusy) return;
-  feedBusy = true;
-  try {
-    const res = await fetch(`/api/match-feed/?client_id=${encodeURIComponent(CLIENT_ID)}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.enabled) { clearInterval(feedTimer); return; }
-    for (const m of data.messages) {
-      if (seenFeed.has(m.id)) continue;
-      seenFeed.add(m.id);
-      addFeedMessage(m);
+// ---- Live chat (AWS AppSync Events) -----------------------------------------
+// "Start chat" publishes "<name> wants to chat with you" to the requests
+// channel, which every open main page hears, and opens /chat/ in a new tab,
+// where the two people talk over the room's channel.
+const live = APPSYNC ? new AppSyncEvents(APPSYNC) : null;
+const REQUESTS_CHANNEL = live && live.channel("requests");
+
+if (live) {
+  live.subscribe(REQUESTS_CHANNEL, (e) => {
+    if (e.type !== "CHAT_REQUEST" || typeof e.id !== "string" || typeof e.message !== "string" || seenFeed.has(e.id)) return;
+    seenFeed.add(e.id);
+    addChatRequest(e);
+  });
+}
+
+function myName() {
+  return (me && me.name) || $("name").value.trim() || "You";
+}
+
+function openChatPage(room, withName) {
+  const q = new URLSearchParams({ room, me: myName(), with: withName });
+  window.open(`/chat/?${q}`, "_blank");
+}
+
+function startChatButton(withName, cls = "message-btn") {
+  const btn = el("button", { class: cls, type: "button" }, "Start chat");
+  btn.onclick = async () => {
+    const room = crypto.randomUUID();
+    openChatPage(room, withName);  // right away, so the pop-up blocker allows it
+    btn.disabled = true;
+    try {
+      await live.publish(REQUESTS_CHANNEL, {
+        type: "CHAT_REQUEST", id: crypto.randomUUID(), clientId: CLIENT_ID, roomId: room,
+        fromName: myName(), toName: withName, message: `${myName()} wants to chat with you`, sentAtMs: Date.now(),
+      });
+      btn.textContent = "Chat request sent";
+    } catch (err) {
+      btn.disabled = false;
+      $("error").textContent = err.message;
     }
-  } catch (_) {
-    // transient; the next tick tries again
-  } finally {
-    feedBusy = false;
-  }
+  };
+  return btn;
+}
+
+function joinChatButton(item) {
+  const btn = el("button", { type: "button" }, "Open chat");
+  btn.onclick = () => {
+    closeNotifPanel();
+    $("toast-slot").querySelector(`[data-room="${item.joinRoom.room}"]`)?.remove();
+    openChatPage(item.joinRoom.room, item.joinRoom.withName);
+  };
+  return btn;
+}
+
+function showChatInviteToast(item) {
+  $("toast-slot").replaceChildren(
+    el("div", { class: "toast", role: "alertdialog", "aria-label": "Chat request", "data-room": item.joinRoom.room },
+      el("strong", {}, "Chat request"), item.text, el("div", { class: "actions" }, joinChatButton(item))));
+  setTimeout(() => $("toast-slot").querySelector(`[data-room="${item.joinRoom.room}"]`)?.remove(), TOAST_MS * 3);
 }
 
 // ---- Notifications -------------------------------------------------------
@@ -728,8 +747,10 @@ async function pollNotifications({ quiet = false } = {}) {
 let lastNotifData = { unread: 0, notifications: [] };
 
 function feedItemRow(f) {
-  return el("li", {}, el("div", { class: `notif-item ${f.read ? "" : "unread"}` },
-    f.text, el("span", { class: "notif-time" }, [f.detail, timeAgo(f.sentAtMs)].filter(Boolean).join(" · "))));
+  const time = el("span", { class: "notif-time" }, [f.detail, timeAgo(f.sentAtMs)].filter(Boolean).join(" · "));
+  const action = f.joinRoom ? joinChatButton(f) : null;
+  if (!action) return el("li", {}, el("div", { class: `notif-item ${f.read ? "" : "unread"}` }, f.text, time));
+  return el("li", { class: `notif-feed ${f.read ? "" : "unread"}` }, f.text, time, el("div", { class: "actions" }, action));
 }
 
 function renderNotifications(data) {
@@ -861,30 +882,10 @@ $("email-form").addEventListener("submit", async (e) => {
     button.disabled = false;
   }
 });
-$("sns-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const button = $("sns-form").querySelector("button");
-  button.disabled = true;
-  try {
-    const data = await api("/api/sns/publish/", {
-      subject: $("sns-subject").value.trim(),
-      message: $("sns-message").value.trim(),
-    });
-    $("sns-status").className = "email-status on";
-    $("sns-status").textContent = `Posted (message id ${data.message_id})`;
-    $("sns-message").value = "";
-  } catch (err) {
-    $("sns-status").className = "email-status problem";
-    $("sns-status").textContent = err.message;
-  } finally {
-    button.disabled = false;
-  }
-});
 document.addEventListener("click", closeNotifPanel);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotifPanel(); });
 
 loadDemoPicks();
-startMatchFeed();
 </script>
 </body>
 </html>
