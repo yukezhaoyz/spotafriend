@@ -377,7 +377,7 @@ $("form").addEventListener("submit", async (e) => {
     const res = await fetch("/api/import/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value }),
+      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value, client_id: CLIENT_ID }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Something went wrong");
@@ -622,21 +622,25 @@ $("song-btn").onclick = () =>
 $("song-search").addEventListener("input", renderSongList);
 $("song-search").addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSongPicker(); $("chat-input").focus(); } });
 
-// ---- Chat requests in the bell ---------------------------------------------
-// CLIENT_ID tells this page's own requests apart from everyone else's.
+// ---- Matches and chat requests in the bell ---------------------------------
+// Both come from AppSync, so they reach every open page on every computer.
+// CLIENT_ID tells this page's own events apart from everyone else's.
 const CLIENT_ID = crypto.randomUUID();
 const seenFeed = new Set();
-let feedItems = [];  // newest first: { id, text, detail, sentAtMs, read, joinRoom }
+let feedItems = [];  // newest first: { id, title, text, detail, sentAtMs, read, joinRoom }
 
-function addChatRequest(n) {
-  if (n.clientId === CLIENT_ID) return;  // addressed to the other person
+function addFeedEvent(n) {
+  const mine = n.clientId === CLIENT_ID;
+  if (n.type === "CHAT_REQUEST" && mine) return;  // addressed to the other person
+  // A MATCH shows on the importer's page too: both sides open the same room.
   const item = {
     id: n.id,
-    text: n.message,
-    detail: n.fromName ? `from ${n.fromName}` : "",
+    title: n.type === "MATCH" ? (mine ? "Your match is live" : "New match") : "Chat request",
+    text: n.type === "MATCH" && mine ? `You have a match with ${n.matchName}! Open the chat room for others to join.` : n.message,
+    detail: [!mine && n.fromName && `from ${n.fromName}`, n.score != null && `${n.score}% match`].filter(Boolean).join(" · "),
     sentAtMs: Number(n.sentAtMs) || Date.now(),
     read: false,
-    joinRoom: n.roomId ? { room: n.roomId, withName: n.fromName } : null,
+    joinRoom: n.roomId ? { room: n.roomId, withName: mine ? "" : n.fromName } : null,
   };
   feedItems.unshift(item);
   feedItems.sort((a, b) => b.sentAtMs - a.sentAtMs);
@@ -646,18 +650,23 @@ function addChatRequest(n) {
 }
 
 // ---- Live chat (AWS AppSync Events) -----------------------------------------
-// "Start chat" publishes "<name> wants to chat with you" to the requests
-// channel, which every open main page hears, and opens /chat/ in a new tab,
+// Importing a playlist makes the server publish a MATCH with a new room to the
+// matches channel. "Start chat" publishes "<name> wants to chat with you" to
+// the requests channel. Either way, "Open chat" opens /chat/ in a new tab,
 // where the two people talk over the room's channel.
 const live = APPSYNC ? new AppSyncEvents(APPSYNC) : null;
 const REQUESTS_CHANNEL = live && live.channel("requests");
 
+function onFeedEvent(e) {
+  if (!["MATCH", "CHAT_REQUEST"].includes(e.type) || typeof e.id !== "string"
+      || typeof e.message !== "string" || seenFeed.has(e.id)) return;
+  seenFeed.add(e.id);
+  addFeedEvent(e);
+}
+
 if (live) {
-  live.subscribe(REQUESTS_CHANNEL, (e) => {
-    if (e.type !== "CHAT_REQUEST" || typeof e.id !== "string" || typeof e.message !== "string" || seenFeed.has(e.id)) return;
-    seenFeed.add(e.id);
-    addChatRequest(e);
-  });
+  live.subscribe(REQUESTS_CHANNEL, onFeedEvent);
+  live.subscribe(live.channel("matches"), onFeedEvent);
 }
 
 function myName() {
@@ -665,7 +674,8 @@ function myName() {
 }
 
 function openChatPage(room, withName) {
-  const q = new URLSearchParams({ room, me: myName(), with: withName });
+  const q = new URLSearchParams({ room, me: myName() });
+  if (withName) q.set("with", withName);
   window.open(`/chat/?${q}`, "_blank");
 }
 
@@ -701,8 +711,8 @@ function joinChatButton(item) {
 
 function showChatInviteToast(item) {
   $("toast-slot").replaceChildren(
-    el("div", { class: "toast", role: "alertdialog", "aria-label": "Chat request", "data-room": item.joinRoom.room },
-      el("strong", {}, "Chat request"), item.text, el("div", { class: "actions" }, joinChatButton(item))));
+    el("div", { class: "toast", role: "alertdialog", "aria-label": item.title, "data-room": item.joinRoom.room },
+      el("strong", {}, item.title), item.text, el("div", { class: "actions" }, joinChatButton(item))));
   setTimeout(() => $("toast-slot").querySelector(`[data-room="${item.joinRoom.room}"]`)?.remove(), TOAST_MS * 3);
 }
 
