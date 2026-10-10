@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 
 from django.http import JsonResponse
@@ -141,6 +142,9 @@ def index(request):
 
 
 MATCHES_SHOWN = 4
+# SPOTAFRIEND_FAKE_USERS=off leaves the made-up listeners out of matching, so only
+# people who really imported a playlist can match each other.
+FAKE_USERS = os.environ.get("SPOTAFRIEND_FAKE_USERS", "on").lower() != "off"
 SAMPLE_SONGS = 5
 
 
@@ -183,8 +187,10 @@ def import_playlist(request):
     ]
     my_artists = {a for t in tracks for a in t["artists"]}
 
-    seed.retune_demo_friend(track_ids, seed_key=url)
-    matches = matching.nearest_neighbors(user, MATCHES_SHOWN, pin_demo_friend=True)
+    if FAKE_USERS:
+        seed.retune_demo_friend(track_ids, seed_key=url)
+    matches = matching.nearest_neighbors(
+        user, MATCHES_SHOWN, pin_demo_friend=FAKE_USERS, include_bots=FAKE_USERS)
     if matches:
         top = User.objects.get(pk=matches[0]["user_id"])
         notifications.notify_match(user, top, matches[0]["score"])
@@ -386,8 +392,8 @@ def sns_publish(request):
 
 @require_GET
 def match_feed_poll(request):
-    """GET ?client_id=...: match messages waiting on the SQS queue. The ones
-    this client sent are flagged "mine" and removed from the queue."""
+    """GET ?client_id=...: a look at the match messages on the SQS queue. The
+    ones this client sent are flagged "mine". Nothing is removed from the queue."""
     try:
         return JsonResponse({"enabled": match_feed.available(), "messages": match_feed.poll(request.GET.get("client_id", ""))})
     except Exception as e:

@@ -7,7 +7,8 @@ Each message carries the sender's name and the page's client_id, so the page
 can tell its own messages from everyone else's.
 
 The feed is off until both settings are set. It needs AWS credentials with
-sns:Publish on the topic and sqs:ReceiveMessage / sqs:DeleteMessage on the queue.
+sns:Publish on the topic and sqs:ReceiveMessage on the queue.
+Messages are only read, never deleted, so the queue keeps them until SQS expires them.
 """
 import json
 import logging
@@ -97,24 +98,26 @@ def _unwrap(body):
 
 
 def poll(client_id):
-    """Read what's waiting on the queue, without waiting for more.
+    """A look at the queue. Nothing is deleted, hidden or released: every page
+    sees every message, and the page decides which ones are new to it.
 
-    Messages this client_id sent are returned and deleted. Everyone else's are
-    returned but left alone (visibility timeout 0), so their own pages still see them."""
+    A short poll returns a random sample of at most RECEIVE_MAX messages and may
+    repeat one, so the page calls this every second and de-duplicates by id."""
     if not QUEUE_URL:
         return []
-    sqs = _client("sqs")
-    resp = sqs.receive_message(
-        QueueUrl=QUEUE_URL, MaxNumberOfMessages=RECEIVE_MAX, VisibilityTimeout=0, WaitTimeSeconds=0)
-    out, seen = [], set()
+    resp = _client("sqs").receive_message(
+        QueueUrl=QUEUE_URL, MaxNumberOfMessages=RECEIVE_MAX, VisibilityTimeout=0, WaitTimeSeconds=0,
+        AttributeNames=["SentTimestamp"])
+    out = {}
     for msg in resp.get("Messages", []):
-        if msg["MessageId"] in seen:  # a short visibility timeout can repeat a message in one batch
-            continue
-        seen.add(msg["MessageId"])
         notification, raw = _unwrap(msg["Body"])
         mine = bool(client_id and notification
                     and notification.get("source") == SOURCE and notification.get("clientId") == client_id)
-        if mine:
-            sqs.delete_message(QueueUrl=QUEUE_URL, ReceiptHandle=msg["ReceiptHandle"])
-        out.append({"mine": mine, "notification": notification, "raw": None if notification else raw})
-    return out
+        out[msg["MessageId"]] = {
+            "id": msg["MessageId"],
+            "mine": mine,
+            "sentAtMs": int(msg["Attributes"]["SentTimestamp"]),
+            "notification": notification,
+            "raw": None if notification else raw,
+        }
+    return list(out.values())

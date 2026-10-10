@@ -647,6 +647,26 @@ function startMatchFeed() {
   feedTimer = setInterval(pollMatchFeed, FEED_POLL_MS);
 }
 
+// Only messages that reach the queue after this page opened go in the bell.
+const PAGE_OPENED_MS = Date.now();
+const CLOCK_SLACK_MS = 5000;  // this computer's clock vs. AWS's
+let feedItems = [];           // newest first: { id, text, detail, sentAtMs, read }
+
+function addFeedMessage({ id, mine, sentAtMs, notification: n, raw }) {
+  if (sentAtMs < PAGE_OPENED_MS - CLOCK_SLACK_MS) return;
+  const who = mine ? "you" : n && n.fromName ? n.fromName : null;
+  feedItems.unshift({
+    id,
+    text: n ? n.message || JSON.stringify(n) : raw,
+    detail: [who && `from ${who}`, n && n.score != null ? `${n.score}% match` : null].filter(Boolean).join(" · "),
+    sentAtMs,
+    read: false,
+  });
+  feedItems.sort((a, b) => b.sentAtMs - a.sentAtMs);
+  $("bell-wrap").classList.remove("hidden");
+  renderNotifications(lastNotifData);
+}
+
 async function pollMatchFeed() {
   if (feedBusy) return;
   feedBusy = true;
@@ -655,10 +675,10 @@ async function pollMatchFeed() {
     if (!res.ok) return;
     const data = await res.json();
     if (!data.enabled) { clearInterval(feedTimer); return; }
-    for (const { mine, notification: n } of data.messages) {
-      if (!n || n.type !== "MATCH" || seenFeed.has(n.notificationId)) continue;
-      seenFeed.add(n.notificationId);
-      showToast({ kind: "match_feed", text: mine ? `You: ${n.message}` : `${n.fromName}: ${n.message}` });
+    for (const m of data.messages) {
+      if (seenFeed.has(m.id)) continue;
+      seenFeed.add(m.id);
+      addFeedMessage(m);
     }
   } catch (_) {
     // transient; the next tick tries again
@@ -705,19 +725,30 @@ async function pollNotifications({ quiet = false } = {}) {
   }
 }
 
+let lastNotifData = { unread: 0, notifications: [] };
+
+function feedItemRow(f) {
+  return el("li", {}, el("div", { class: `notif-item ${f.read ? "" : "unread"}` },
+    f.text, el("span", { class: "notif-time" }, [f.detail, timeAgo(f.sentAtMs)].filter(Boolean).join(" · "))));
+}
+
 function renderNotifications(data) {
-  $("badge").textContent = data.unread > 9 ? "9+" : String(data.unread);
-  $("badge").classList.toggle("hidden", data.unread === 0);
-  $("bell").setAttribute("aria-label", `Notifications (${data.unread} unread)`);
+  lastNotifData = data;
+  const feedUnread = feedItems.filter((f) => !f.read).length;
+  const unread = data.unread + feedUnread;
+  $("badge").textContent = unread > 9 ? "9+" : String(unread);
+  $("badge").classList.toggle("hidden", unread === 0);
+  $("bell").setAttribute("aria-label", `Notifications (${unread} unread)`);
   // Only redraw the list when it changed, so it doesn't shift under the mouse.
-  const signature = data.notifications.map((n) => `${n.id}:${n.read}:${n.needs_answer}`).join(",");
+  const signature = feedItems.map((f) => `${f.id}:${f.read}`).join(",") + "|"
+    + data.notifications.map((n) => `${n.id}:${n.read}:${n.needs_answer}`).join(",");
   if (signature === renderedSignature && $("notif-list").childElementCount) return;
   renderedSignature = signature;
-  if (!data.notifications.length) {
+  if (!data.notifications.length && !feedItems.length) {
     $("notif-list").replaceChildren(el("li", { class: "notif-empty" }, "Nothing yet."));
     return;
   }
-  $("notif-list").replaceChildren(...data.notifications.map((n) => {
+  $("notif-list").replaceChildren(...feedItems.map(feedItemRow), ...data.notifications.map((n) => {
     if (n.needs_answer) return el("li", { class: "notif-request" },
       n.text, el("span", { class: "notif-time" }, timeAgo(n.created_at)), requestButtons(n));
     const item = el("button", { class: `notif-item ${n.read ? "" : "unread"}`, type: "button" },
@@ -741,7 +772,7 @@ function requestButtons(n) {
   return el("div", { class: "actions" }, accept, decline);
 }
 
-const TOAST_TITLES = { message: "New message", chat_answer: "Chat request", match_feed: "Match announced" };
+const TOAST_TITLES = { message: "New message", chat_answer: "Chat request" };
 
 function showToast(n) {
   const toast = el("button", { class: "toast", type: "button" }, el("strong", {}, TOAST_TITLES[n.kind] || "Notification"), n.text);
@@ -770,10 +801,17 @@ $("bell").onclick = async (e) => {
   if (!opening) return closeNotifPanel();
   $("notif-panel").classList.remove("hidden");
   $("bell").setAttribute("aria-expanded", "true");
+  if (!me) {  // nobody imported yet: just the queue messages
+    renderNotifications(lastNotifData);
+    feedItems.forEach((f) => { f.read = true; });
+    $("badge").classList.add("hidden");
+    return;
+  }
   loadEmailAlerts();
   // Show what was unread, then clear the badge.
   await poll(async () => {
     renderNotifications(await api(`/api/users/${me.id}/notifications/`));
+    feedItems.forEach((f) => { f.read = true; });
     const cleared = await api(`/api/users/${me.id}/notifications/`, {});
     $("badge").classList.add("hidden");
     $("bell").setAttribute("aria-label", `Notifications (${cleared.unread} unread)`);
@@ -846,6 +884,7 @@ document.addEventListener("click", closeNotifPanel);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotifPanel(); });
 
 loadDemoPicks();
+startMatchFeed();
 </script>
 </body>
 </html>

@@ -77,9 +77,10 @@ def score_from_distance(distance):
     return round(100 * 2 ** (-((distance / HALF_SCORE_DISTANCE) ** 2)), 1)
 
 
-def nearest_neighbors(user, k=5, pin_demo_friend=False):
+def nearest_neighbors(user, k=5, pin_demo_friend=False, include_bots=True):
     """The k users whose profiles are closest to this user's, best first.
-    With pin_demo_friend, the demo friend is listed first regardless."""
+    With pin_demo_friend, the demo friend is listed first regardless.
+    With include_bots=False, only real (non-bot) users can match."""
     weights = [1 / _stats[f][1] ** 2 for f in MATCH_FEATURES]
     d2 = " + ".join(f"%s * (p.{f} - me.{f}) * (p.{f} - me.{f})" for f in MATCH_FEATURES)
     sql = f"""
@@ -89,6 +90,7 @@ def nearest_neighbors(user, k=5, pin_demo_friend=False):
         JOIN users u ON u.id = p.user_id
         WHERE p.user_id != me.user_id
           AND p.matched_count > 0 AND me.matched_count > 0
+          {"" if include_bots else "AND u.is_bot = 0"}
         ORDER BY {"u.is_demo_friend DESC," if pin_demo_friend else ""} d2
         LIMIT %s
     """
