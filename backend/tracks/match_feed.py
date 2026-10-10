@@ -59,7 +59,7 @@ def build_match(user, match, client_id):
         "toUserId": match["user_id"],
         "toName": match["name"],
         "score": round(match["score"]),
-        "message": f"{user.name} matched with {match['name']}!",
+        "message": f"You have a match with {user.name}!",
         "sentAt": datetime.now(timezone.utc).isoformat(),
     }
 
