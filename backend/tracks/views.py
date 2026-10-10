@@ -142,9 +142,9 @@ def index(request):
 
 
 MATCHES_SHOWN = 4
-# SPOTAFRIEND_FAKE_USERS=off leaves the made-up listeners out of matching, so only
-# people who really imported a playlist can match each other.
-FAKE_USERS = os.environ.get("SPOTAFRIEND_FAKE_USERS", "on").lower() != "off"
+# The made-up listeners (Riley and friends) stay out of matching unless
+# SPOTAFRIEND_FAKE_USERS=on, so only people who really imported a playlist match.
+FAKE_USERS = os.environ.get("SPOTAFRIEND_FAKE_USERS", "off").lower() == "on"
 SAMPLE_SONGS = 5
 
 
@@ -193,10 +193,12 @@ def import_playlist(request):
         user, MATCHES_SHOWN, pin_demo_friend=FAKE_USERS, include_bots=FAKE_USERS)
     if matches:
         top = User.objects.get(pk=matches[0]["user_id"])
-        notifications.notify_match(user, top, matches[0]["score"])
+        # With live chat on, the page announces matches over AppSync instead,
+        # so both people (on any computer) hear about it the same way.
+        if not chat_feed.available():
+            notifications.notify_match(user, top, matches[0]["score"])
         if top.is_bot:
             chat.queue_greeting(bot=top, human=user)
-        chat_feed.announce_match(user, matches[0], str(body.get("client_id") or ""))
     for m in matches:
         their_ids = UserTrack.objects.filter(user_id=m["user_id"]).values_list("track_id", flat=True)
         their_songs = {}
