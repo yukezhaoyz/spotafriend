@@ -102,7 +102,9 @@ function el(tag, attrs = {}, ...children) {
 const params = new URLSearchParams(location.search);
 const ROOM = params.get("room") || "";
 const ME = params.get("me") || "You";
-const WITH = params.get("with") || "your match";
+// No "with" when you open the room from your own match: the header fills in
+// with whoever joins.
+let WITH = params.get("with") || "";
 const MAX_TEXT = 1000;
 const HISTORY_MAX = 50;
 
@@ -124,9 +126,19 @@ const CLIENT_ID = clientId();
 const messages = new Map();  // id -> { id, clientId, fromName, text, sentAtMs, pending }
 let theyreHere = false;
 
-document.title = `Chat with ${WITH} · Spotafriend`;
-$("avatar").textContent = WITH[0].toUpperCase();
-$("with-name").textContent = WITH;
+function showWith() {
+  document.title = WITH ? `Chat with ${WITH} · Spotafriend` : "Your chat room · Spotafriend";
+  $("avatar").textContent = WITH ? WITH[0].toUpperCase() : "♪";
+  $("with-name").textContent = WITH || "Your chat room";
+}
+showWith();
+
+function learnWith(name) {
+  if (WITH || !name) return;
+  WITH = String(name).slice(0, 60);
+  showWith();
+  renderedSignature = null;
+}
 
 function setStatus(text, cls = "") {
   $("status").className = `status ${cls}`;
@@ -134,7 +146,7 @@ function setStatus(text, cls = "") {
 }
 
 function showLive() {
-  setStatus(theyreHere ? `${WITH} is in the chat` : `Live on AWS AppSync as ${ME} · waiting for ${WITH}`, "live");
+  setStatus(theyreHere ? `${WITH || "Someone"} is in the chat` : `Live on AWS AppSync as ${ME} · waiting for ${WITH || "someone to join"}`, "live");
 }
 
 function disable(text) {
@@ -156,7 +168,8 @@ function render() {
   const log = $("log");
   if (!list.length) {
     log.replaceChildren(el("div", { class: "empty" },
-      `This chat runs live through AWS AppSync. Say hi to ${WITH}: they'll see everything here once they open the chat request.`));
+      WITH ? `This chat runs live through AWS AppSync. Say hi to ${WITH}: they'll see everything here once they open the chat.`
+        : "This chat runs live through AWS AppSync. Anyone who opens your match from their bell joins you here and sees everything said so far."));
     return;
   }
   const nodes = [];
@@ -166,7 +179,7 @@ function render() {
     nodes.push(el("div", { class: `bubble ${side} ${m.pending ? "pending" : ""}` }, m.text));
     const next = list[i + 1];
     if (!next || next.clientId !== m.clientId) {
-      const who = mine ? "You" : m.fromName || WITH;
+      const who = mine ? "You" : m.fromName || WITH || "Them";
       nodes.push(el("div", { class: `meta ${side}` }, m.pending ? "Sending…" : `${who} · ${timeOf(m.sentAtMs)}`));
     }
   });
@@ -191,6 +204,7 @@ function sentMessages() {
 }
 
 function onEvent(e) {
+  if (e.clientId !== CLIENT_ID) learnWith(e.fromName);
   if (e.type === "CHAT_MESSAGE") {
     addMessage(e);
   } else if (e.type === "HELLO" && e.clientId !== CLIENT_ID) {
