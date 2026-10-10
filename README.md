@@ -102,6 +102,7 @@ cp .env.example .env
 | `SPOTAFRIEND_EMAIL_ALERTS` | Email alerts: `off`, `log` (print instead of sending) or `sns` (send via AWS) | `off` |
 | `SPOTAFRIEND_SNS_TOPIC_ARN` | The SNS topic to send through, e.g. one a teammate created | empty (use `SPOTAFRIEND_SNS_TOPIC`) |
 | `SPOTAFRIEND_SNS_TOPIC` | Topic name to look up or create in your own AWS account | `spotafriend-alerts` |
+| `SPOTAFRIEND_SQS_QUEUE_URL` | SQS queue subscribed to the topic. Importing a playlist announces a fake match through SNS, and the page reads it back from this queue every second. Off while empty | empty |
 | `AWS_REGION` | AWS region | from the topic ARN, then `~/.aws/config` |
 | `SPOTAFRIEND_AWAY_SECONDS` | Seconds without activity before someone counts as away | `60` |
 | `SPOTAFRIEND_SITE_URL` | Link put in alert emails | `http://localhost:8000` |
@@ -253,6 +254,7 @@ spotafriend/
         ├── chat.py              # chat requests, messages, bot replies
         ├── notifications.py     # the bell and pop-ups
         ├── email_alerts.py      # AWS SNS email alerts
+        ├── match_feed.py        # fake-match announcements over SNS -> SQS
         ├── middleware.py        # one request at a time (see Architecture)
         ├── views.py, urls.py    # the API
         ├── templates/tracks/index.html   # the whole web page

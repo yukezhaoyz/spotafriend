@@ -390,7 +390,7 @@ $("form").addEventListener("submit", async (e) => {
     const res = await fetch("/api/import/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value }),
+      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value, client_id: CLIENT_ID }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Something went wrong");
@@ -398,6 +398,7 @@ $("form").addEventListener("submit", async (e) => {
     myTracks = data.tracks;
     closeChat();
     startNotifications();
+    startMatchFeed();
 
     // Reveal in two beats: the playlist first, then who matched.
     $("match").classList.add("hidden");
@@ -455,6 +456,7 @@ function resetSession() {
   me = null;
   closeChat();
   clearInterval(notifTimer);
+  clearInterval(feedTimer);
   closeNotifPanel();
   $("bell-wrap").classList.add("hidden");
   $("toast-slot").replaceChildren();
@@ -631,6 +633,40 @@ $("song-btn").onclick = () =>
 $("song-search").addEventListener("input", renderSongList);
 $("song-search").addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSongPicker(); $("chat-input").focus(); } });
 
+// ---- Match feed (AWS SNS -> SQS) ---------------------------------------------
+// Importing a playlist announces a (fake) match through AWS. This page reads
+// the queue every second and uses CLIENT_ID to tell its own messages apart.
+const CLIENT_ID = crypto.randomUUID();
+const FEED_POLL_MS = 1000;
+let feedTimer = null;
+let feedBusy = false;
+const seenFeed = new Set();
+
+function startMatchFeed() {
+  clearInterval(feedTimer);
+  feedTimer = setInterval(pollMatchFeed, FEED_POLL_MS);
+}
+
+async function pollMatchFeed() {
+  if (feedBusy) return;
+  feedBusy = true;
+  try {
+    const res = await fetch(`/api/match-feed/?client_id=${encodeURIComponent(CLIENT_ID)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.enabled) { clearInterval(feedTimer); return; }
+    for (const { mine, notification: n } of data.messages) {
+      if (!n || n.type !== "MATCH" || seenFeed.has(n.notificationId)) continue;
+      seenFeed.add(n.notificationId);
+      showToast({ kind: "match_feed", text: mine ? `You: ${n.message}` : `${n.fromName}: ${n.message}` });
+    }
+  } catch (_) {
+    // transient; the next tick tries again
+  } finally {
+    feedBusy = false;
+  }
+}
+
 // ---- Notifications -------------------------------------------------------
 const NOTIFY_POLL_MS = 2000;
 const TOAST_MS = 5000;
@@ -705,7 +741,7 @@ function requestButtons(n) {
   return el("div", { class: "actions" }, accept, decline);
 }
 
-const TOAST_TITLES = { message: "New message", chat_answer: "Chat request" };
+const TOAST_TITLES = { message: "New message", chat_answer: "Chat request", match_feed: "Match announced" };
 
 function showToast(n) {
   const toast = el("button", { class: "toast", type: "button" }, el("strong", {}, TOAST_TITLES[n.kind] || "Notification"), n.text);
