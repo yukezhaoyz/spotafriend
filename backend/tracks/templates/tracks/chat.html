@@ -62,6 +62,29 @@
     }
     button:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
     .error { color: var(--error); font-size: 13px; min-height: 1.5em; padding-top: 4px; }
+
+    .bubble.song { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; white-space: normal; }
+    .bubble.song .note {
+      grid-row: span 2; width: 34px; height: 34px; border-radius: 6px;
+      display: grid; place-items: center; font-size: 16px; background: rgba(0, 0, 0, 0.25);
+    }
+    .bubble.song .song-title { font-weight: 700; }
+    .bubble.song .song-artists { font-size: 13px; opacity: 0.75; }
+    .bubble.song .song-label { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+
+    .add-btn { background: var(--surface-2); color: var(--text); padding: 0; width: 46px; flex: none; font-size: 22px; line-height: 1; }
+    .add-btn[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); }
+    .song-picker { border-top: 1px solid var(--surface-2); padding-top: 10px; }
+    .song-picker[hidden] { display: none; }
+    .song-picker input { width: 100%; padding: 8px 14px; font-size: 14px; }
+    .song-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+    .song-option {
+      display: block; width: 100%; text-align: left; background: none; color: var(--text);
+      border-radius: 6px; padding: 6px 8px; font-weight: 400; font-size: 14px;
+    }
+    .song-option:hover, .song-option:focus-visible { background: var(--surface-2); outline: none; }
+    .song-option span { display: block; color: var(--muted); font-size: 12px; }
+    .song-none { color: var(--muted); font-size: 13px; padding: 6px 8px; }
   </style>
 </head>
 <body>
@@ -75,7 +98,12 @@
     </div>
   </div>
   <div class="log" id="log" aria-live="polite"></div>
+  <div class="song-picker" id="song-picker" hidden>
+    <input id="song-search" placeholder="Search songs or artists…" autocomplete="off" aria-label="Search songs or artists">
+    <ul class="song-list" id="song-list"></ul>
+  </div>
   <form id="form">
+    <button class="add-btn" id="add-btn" type="button" aria-label="Recommend a song" aria-expanded="false" aria-controls="song-picker" title="Recommend a song">+</button>
     <input id="input" placeholder="Say hi…" autocomplete="off" maxlength="1000" aria-label="Message">
     <button type="submit">Send</button>
   </form>
@@ -151,7 +179,8 @@ function showLive() {
 
 function disable(text) {
   setStatus(text, "problem");
-  $("input").disabled = $("form").querySelector("button").disabled = true;
+  $("input").disabled = true;
+  for (const b of $("form").querySelectorAll("button")) b.disabled = true;
 }
 
 function timeOf(ms) {
@@ -176,7 +205,13 @@ function render() {
   list.forEach((m, i) => {
     const mine = m.clientId === CLIENT_ID;
     const side = mine ? "mine" : "theirs";
-    nodes.push(el("div", { class: `bubble ${side} ${m.pending ? "pending" : ""}` }, m.text));
+    nodes.push(m.song
+      ? el("div", { class: `bubble song ${side} ${m.pending ? "pending" : ""}` },
+          el("div", { class: "song-label" }, "Recommended a song"),
+          el("div", { class: "note", "aria-hidden": "true" }, "♪"),
+          el("div", { class: "song-title" }, m.song.name),
+          el("div", { class: "song-artists" }, m.song.artists))
+      : el("div", { class: `bubble ${side} ${m.pending ? "pending" : ""}` }, m.text));
     const next = list[i + 1];
     if (!next || next.clientId !== m.clientId) {
       const who = mine ? "You" : m.fromName || WITH || "Them";
@@ -188,12 +223,20 @@ function render() {
   if (atBottom || list[list.length - 1].clientId === CLIENT_ID) log.scrollTop = log.scrollHeight;
 }
 
+// A song recommendation is a message with a "song" ({ name, artists }) and no text.
+function cleanSong(song) {
+  if (!song || typeof song.name !== "string" || typeof song.artists !== "string") return null;
+  return { name: song.name.slice(0, 200), artists: song.artists.slice(0, 200) };
+}
+
 function addMessage(m) {
   if (!m || typeof m.id !== "string" || typeof m.text !== "string") return;
   if (messages.has(m.id) && !messages.get(m.id).pending) return;
+  const song = cleanSong(m.song);
+  if (!song && !m.text) return;
   messages.set(m.id, {
     id: m.id, clientId: m.clientId, fromName: String(m.fromName || "").slice(0, 60),
-    text: m.text.slice(0, MAX_TEXT), sentAtMs: Number(m.sentAtMs) || Date.now(), pending: false,
+    text: m.text.slice(0, MAX_TEXT), song, sentAtMs: Number(m.sentAtMs) || Date.now(), pending: false,
   });
 }
 
@@ -222,26 +265,103 @@ function onEvent(e) {
 let live = null;
 let ROOM_CHANNEL = null;
 
+// Show it right away as "Sending…" until AppSync confirms. Returns whether it went.
+async function send(fields) {
+  $("error").textContent = "";
+  const m = { id: crypto.randomUUID(), clientId: CLIENT_ID, fromName: ME, text: "", song: null, sentAtMs: Date.now(), ...fields };
+  messages.set(m.id, { ...m, pending: true });
+  render();
+  try {
+    await live.publish(ROOM_CHANNEL, { type: "CHAT_MESSAGE", ...m });
+    if (messages.get(m.id)?.pending) messages.set(m.id, { ...m, pending: false });
+    return true;
+  } catch (err) {
+    messages.delete(m.id);
+    $("error").textContent = err.message;
+    return false;
+  } finally {
+    render();
+  }
+}
+
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("input").value.trim();
   if (!text) return;
   if (text.length > MAX_TEXT) { $("error").textContent = `Messages are limited to ${MAX_TEXT} characters`; return; }
   $("input").value = "";
-  $("error").textContent = "";
-  const m = { id: crypto.randomUUID(), clientId: CLIENT_ID, fromName: ME, text, sentAtMs: Date.now() };
-  messages.set(m.id, { ...m, pending: true });  // "Sending…" until AppSync confirms
-  render();
-  try {
-    await live.publish(ROOM_CHANNEL, { type: "CHAT_MESSAGE", ...m });
-    if (messages.get(m.id)?.pending) messages.set(m.id, { ...m, pending: false });
-  } catch (err) {
-    messages.delete(m.id);
-    $("input").value = text;
-    $("error").textContent = err.message;
-  }
-  render();
+  if (!(await send({ text }))) $("input").value = text;
   $("input").focus();
+});
+
+// ---- "+": recommend a song ------------------------------------------------
+// Searches the song catalog (/api/tracks/) by title and by artist. The same
+// song is listed once per genre (and sometimes per release) there, so results
+// are de-duplicated by title and artists.
+const SONGS_SHOWN = 20;
+let searchTimer = null;
+let searchSeq = 0;
+
+async function searchSongs(q) {
+  const urls = q
+    ? [`/api/tracks/?q=${encodeURIComponent(q)}&limit=40`, `/api/tracks/?artist=${encodeURIComponent(q)}&limit=40`]
+    : ["/api/tracks/?limit=60"];  // nothing typed: the most popular songs
+  const results = await Promise.all(urls.map((u) => fetch(u).then((r) => (r.ok ? r.json() : { tracks: [] }))));
+  const songs = new Map();
+  for (const t of results.flatMap((r) => r.tracks)) {
+    const song = { name: t.track_name, artists: t.artists.split(";").join(", ") };
+    const key = `${song.name}\n${song.artists}`.toLowerCase();
+    if (!songs.has(key)) songs.set(key, song);
+  }
+  return [...songs.values()].slice(0, SONGS_SHOWN);
+}
+
+function openSongPicker() {
+  $("song-picker").hidden = false;
+  $("add-btn").setAttribute("aria-expanded", "true");
+  $("song-search").value = "";
+  renderSongList();
+  $("song-search").focus();
+}
+
+function closeSongPicker() {
+  $("song-picker").hidden = true;
+  $("add-btn").setAttribute("aria-expanded", "false");
+}
+
+async function renderSongList() {
+  const seq = ++searchSeq;
+  let songs;
+  try {
+    songs = await searchSongs($("song-search").value.trim());
+  } catch (_) {
+    songs = null;
+  }
+  if (seq !== searchSeq) return;  // a newer search is on its way
+  if (!songs || !songs.length) {
+    $("song-list").replaceChildren(el("li", { class: "song-none" }, songs ? "No songs match." : "Couldn't load songs."));
+    return;
+  }
+  $("song-list").replaceChildren(...songs.map((t) => {
+    const option = el("button", { class: "song-option", type: "button" }, t.name, el("span", {}, t.artists));
+    option.onclick = () => recommend(t);
+    return el("li", {}, option);
+  }));
+}
+
+async function recommend(track) {
+  closeSongPicker();
+  await send({ song: { name: track.name, artists: track.artists } });
+  $("input").focus();
+}
+
+$("add-btn").onclick = () => ($("song-picker").hidden ? openSongPicker() : closeSongPicker());
+$("song-search").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderSongList, 250);
+});
+$("song-search").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeSongPicker(); $("input").focus(); }
 });
 
 if (!/^[0-9a-f-]{36}$/.test(ROOM)) {

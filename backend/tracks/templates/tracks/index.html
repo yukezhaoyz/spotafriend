@@ -45,6 +45,12 @@
       font: inherit; font-weight: 700; cursor: pointer;
     }
     button:disabled { opacity: 0.6; cursor: progress; }
+    .go-group { display: flex; gap: 14px; align-items: center; margin-left: auto; }  /* slider and button wrap together */
+    .distance { width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+    .distance label { font-size: 12px; color: var(--muted); }
+    .distance input { padding: 0; background: none; border: 0; accent-color: var(--accent); width: 100%; cursor: pointer; }
+    .location-note { font-size: 13px; color: var(--muted); margin-top: 8px; }
+    .location-note:empty { display: none; }
 
     .demo-picks { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .chip {
@@ -243,8 +249,15 @@
   <form id="form">
     <input id="name" placeholder="Your name" autocomplete="off">
     <input id="url" placeholder="Paste a Spotify playlist link" autocomplete="off" required>
-    <button id="go" type="submit">Find my people</button>
+    <div class="go-group">
+      <div class="distance">
+        <label for="distance" id="distance-label">Across the world</label>
+        <input id="distance" type="range" min="0" max="8" step="1" value="8">
+      </div>
+      <button id="go" type="submit">Find my people</button>
+    </div>
   </form>
+  <div class="location-note" id="location-note" role="status"></div>
   <div class="demo-picks" id="picks"><span class="muted">Demo playlists:</span></div>
   <div class="error" id="error" role="alert"></div>
 
@@ -377,6 +390,7 @@ $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("error").textContent = "";
   $("go").disabled = true;
+  getLocation();  // asks now, while the click still counts as the reason
   try {
     const res = await fetch("/api/import/", {
       method: "POST",
@@ -670,34 +684,118 @@ function onChatRequest(e) {
 // match!". The first person to arrive hears from no one, so gets nothing.
 const liveMatches = new Map();  // other page's CLIENT_ID -> { name, room }
 
-function announceArrival() {
+async function announceArrival() {
   if (!live) return;
-  live.publish(MATCHES_CHANNEL, { type: "ARRIVED", id: crypto.randomUUID(), clientId: CLIENT_ID, name: myName() })
-    .catch((err) => { $("error").textContent = err.message; });
+  const location = await getLocation();
+  live.publish(MATCHES_CHANNEL, {
+    type: "ARRIVED", id: crypto.randomUUID(), clientId: CLIENT_ID, name: myName(), location, maxMiles: maxMiles(),
+  }).catch((err) => { $("error").textContent = err.message; });
 }
+
+// ---- Match distance ---------------------------------------------------------
+// The slider next to "Find my people" sets how far away a match may be. Two
+// people match only when they're within both of their distances, measured
+// between their browsers' locations (rounded to about half a mile).
+const DISTANCE_STEPS = [1, 5, 10, 25, 50, 100, 500, 1000, null];  // miles; null = across the world
+let myLocation = null;
+let locationAsk = null;    // the request in flight (or done, once it worked)
+let locationTried = false;
+
+function maxMiles() {
+  return DISTANCE_STEPS[Number($("distance").value)];
+}
+
+function showDistance() {
+  const m = maxMiles();
+  const text = m === null ? "Across the world" : `Within ${m.toLocaleString()} mile${m === 1 ? "" : "s"}`;
+  $("distance-label").textContent = text;
+  $("distance").setAttribute("aria-valuetext", text);
+  showLocationNote();
+}
+
+function showLocationNote() {
+  $("location-note").textContent = locationTried && !myLocation && maxMiles() !== null
+    ? "Couldn't get your location, so only \u201cAcross the world\u201d can find matches. Allow location for this site and set up again."
+    : "";
+}
+
+const round2 = (x) => Math.round(x * 100) / 100;
+
+function getLocation() {
+  if (!locationAsk) {
+    locationAsk = new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: round2(p.coords.latitude), lon: round2(p.coords.longitude) }),
+        () => resolve(null),
+        { timeout: 8000, maximumAge: 10 * 60 * 1000 });
+    }).then((loc) => {
+      myLocation = loc;
+      locationTried = true;
+      if (!loc) locationAsk = null;  // ask again on the next setup
+      showLocationNote();
+      return loc;
+    });
+  }
+  return locationAsk;
+}
+
+function cleanLocation(loc) {
+  return loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon) ? { lat: loc.lat, lon: loc.lon } : null;
+}
+
+function milesBetween(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2
+    + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
+  return 2 * 3958.8 * Math.asin(Math.sqrt(h));
+}
+
+// Whether someone at theirLocation, who allows theirMax miles, is in reach.
+function inReach(theirLocation, theirMax) {
+  const limits = [maxMiles(), theirMax].filter((m) => typeof m === "number");
+  if (!limits.length) return true;
+  if (!myLocation || !theirLocation) return false;
+  return milesBetween(myLocation, theirLocation) <= Math.min(...limits);
+}
+
+function distanceText(theirLocation) {
+  if (!myLocation || !theirLocation) return "";
+  const miles = milesBetween(myLocation, theirLocation);
+  return miles < 1 ? "under a mile away" : `about ${Math.round(miles).toLocaleString()} miles away`;
+}
+
+$("distance").addEventListener("input", showDistance);
+showDistance();
 
 function onMatchEvent(e) {
   if (!me || e.clientId === CLIENT_ID || typeof e.clientId !== "string" || typeof e.name !== "string") return;
   const name = e.name.slice(0, 60);
+  const location = cleanLocation(e.location);
   if (e.type === "ARRIVED") {
-    // Someone new imported a playlist: give the two of us a room (the same
-    // one again if we've already matched) and tell them about it.
+    // Someone new imported a playlist: if they're within both our distances,
+    // give the two of us a room (the same one again if we've already matched)
+    // and tell them about it.
+    if (!inReach(location, typeof e.maxMiles === "number" ? e.maxMiles : null)) return;
     const known = liveMatches.get(e.clientId);
     const room = known ? known.room : crypto.randomUUID();
-    live.publish(MATCHES_CHANNEL, { type: "MATCH", id: crypto.randomUUID(), clientId: CLIENT_ID, to: e.clientId, name: myName(), roomId: room })
+    live.publish(MATCHES_CHANNEL, { type: "MATCH", id: crypto.randomUUID(), clientId: CLIENT_ID, to: e.clientId, name: myName(), roomId: room, location: myLocation })
       .catch(() => {});
     if (!known) {
-      addLiveMatch(e.clientId, name, room);
+      addLiveMatch(e.clientId, name, room, location);
       announceMatch([CLIENT_ID, e.clientId], [myName(), name]);
     }
   } else if (e.type === "MATCH" && e.to === CLIENT_ID && ROOM_RE.test(e.roomId) && !liveMatches.has(e.clientId)) {
-    addLiveMatch(e.clientId, name, e.roomId);
+    addLiveMatch(e.clientId, name, e.roomId, location);
   }
 }
 
-function addLiveMatch(clientId, name, room) {
+function addLiveMatch(clientId, name, room, location) {
   liveMatches.set(clientId, { name, room });
-  addFeedItem({ id: room, title: "New match", text: "You've received a match!", detail: `with ${name}`, joinRoom: { room, withName: name } });
+  addFeedItem({
+    id: room, title: "New match", text: "You've received a match!",
+    detail: [`with ${name}`, distanceText(location)].filter(Boolean).join(" · "), joinRoom: { room, withName: name },
+  });
   if (waitingForMatches) renderLiveMatches();
 }
 
