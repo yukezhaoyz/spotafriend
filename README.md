@@ -82,7 +82,7 @@ These are **made-up playlists stored in the app**, not real Spotify playlists; r
 - **Chat requests** with Accept / Decline; messages unlock once accepted.
 - **Chat** with song sharing; made-up listeners accept requests and reply on their own.
 - **Notifications:** a bell with unread count, pop-ups for messages and chat requests.
-- **Live chat (optional):** **Start chat** on a match sends "*name* wants to chat with you" to every open page through AWS AppSync. Both people then chat live on a separate page, with messages going over an AppSync WebSocket.
+- **Live chat (optional):** importing a playlist announces your match on every open page through AWS AppSync, and anyone can click it to open a shared chat room with you. **Start chat** on a match sends "*name* wants to chat with you" to every open page through AWS AppSync. Both people then chat live on a separate page, with messages going over an AppSync WebSocket.
 - **Email alerts (optional)** through AWS SNS for people who are away from the site.
 - **SQL access** to the data for exploring it (read-only).
 
@@ -121,6 +121,8 @@ SPOTAFRIEND_EMAIL_ALERTS=log ../.venv/bin/python manage.py runserver
 ```bash
 ../.venv/bin/python manage.py appsync_setup
 ```
+
+Importing a playlist makes the server publish a `MATCH` ("*name* has a match with *match*!") with a new room id to the `/chat/matches` channel. It shows up in the bell of every open page, on every computer and including the importer's, with an **Open chat** button that opens that same room, so people on two devices can meet there.
 
 Clicking **Start chat** on a match opens `/chat/` in a new tab and publishes a `CHAT_REQUEST` with a new room id to the `/chat/requests` channel. Every other open page shows "*name* wants to chat with you" with an **Open chat** button that joins the same room. Both chat pages hold a WebSocket to AppSync, subscribe to `/chat/rooms/<room id>` and publish messages to it, so messages arrive instantly. Nothing is stored: when someone opens the chat, the page already there sends them the messages they missed, and the chat is gone once both pages close. Requests go to everyone with the site open, not only the person named. To chat across two computers, give both the same three settings. The API key is sent to the browser, so anyone who can open the site can use it; that's fine for a local demo and not beyond. Creating the API needs `appsync:CreateApi`, `appsync:ListApis`, `appsync:CreateChannelNamespace`, `appsync:ListChannelNamespaces` and `appsync:CreateApiKey`; chatting needs no AWS login at all.
 

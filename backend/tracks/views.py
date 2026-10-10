@@ -196,6 +196,7 @@ def import_playlist(request):
         notifications.notify_match(user, top, matches[0]["score"])
         if top.is_bot:
             chat.queue_greeting(bot=top, human=user)
+        chat_feed.announce_match(user, matches[0], str(body.get("client_id") or ""))
     for m in matches:
         their_ids = UserTrack.objects.filter(user_id=m["user_id"]).values_list("track_id", flat=True)
         their_songs = {}
