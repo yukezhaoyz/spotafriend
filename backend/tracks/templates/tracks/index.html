@@ -338,10 +338,14 @@ function sharedSummary(names, shown = 5) {
   return names.slice(0, shown).join(" · ") + (more > 0 ? ` · +${more} more` : "");
 }
 
-function renderMatches(matches) {
+function renderMatches(matches, analyzed) {
   $("finding").classList.add("hidden");
+  waitingForMatches = !matches.length && analyzed && !!APPSYNC;
+  if (waitingForMatches && liveMatches.size) return renderLiveMatches();
   if (!matches.length) {
-    $("best").replaceChildren(el("p", { class: "muted" }, "None of these songs are in our dataset yet, so we can't match you. Try another playlist."));
+    $("best").replaceChildren(el("p", { class: "muted" }, waitingForMatches
+      ? "No one else is here yet. You'll get a notification as soon as someone matches with you."
+      : "None of these songs are in our dataset yet, so we can't match you. Try another playlist."));
     return;
   }
   const [best, ...rest] = matches;
@@ -377,7 +381,7 @@ $("form").addEventListener("submit", async (e) => {
     const res = await fetch("/api/import/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value, client_id: CLIENT_ID }),
+      body: JSON.stringify({ playlist_url: $("url").value, name: $("name").value }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Something went wrong");
@@ -394,7 +398,8 @@ $("form").addEventListener("submit", async (e) => {
     $("finding").classList.remove("hidden");
     $("match").classList.remove("hidden");
     await pause(1200);
-    renderMatches(data.matches);
+    renderMatches(data.matches, data.tracks.some((t) => t.analyzed));
+    announceArrival();
   } catch (err) {
     $("error").textContent = err.message;
   } finally {
@@ -622,51 +627,93 @@ $("song-btn").onclick = () =>
 $("song-search").addEventListener("input", renderSongList);
 $("song-search").addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSongPicker(); $("chat-input").focus(); } });
 
-// ---- Matches and chat requests in the bell ---------------------------------
-// Both come from AppSync, so they reach every open page on every computer.
-// CLIENT_ID tells this page's own events apart from everyone else's.
+// ---- The bell's AppSync items ----------------------------------------------
+// Matches and chat requests come from AppSync, so they reach every open page
+// on every computer. CLIENT_ID tells this page apart from everyone else's.
 const CLIENT_ID = crypto.randomUUID();
 const seenFeed = new Set();
 let feedItems = [];  // newest first: { id, title, text, detail, sentAtMs, read, joinRoom }
 
-function addFeedEvent(n) {
-  const mine = n.clientId === CLIENT_ID;
-  if (n.type === "CHAT_REQUEST" && mine) return;  // addressed to the other person
-  // A MATCH shows on the importer's page too: both sides open the same room.
-  const item = {
-    id: n.id,
-    title: n.type === "MATCH" ? (mine ? "Your match is live" : "New match") : "Chat request",
-    text: n.type === "MATCH" && mine ? `You have a match with ${n.matchName}! Open the chat room for others to join.` : n.message,
-    detail: [!mine && n.fromName && `from ${n.fromName}`, n.score != null && `${n.score}% match`].filter(Boolean).join(" · "),
-    sentAtMs: Number(n.sentAtMs) || Date.now(),
-    read: false,
-    joinRoom: n.roomId ? { room: n.roomId, withName: mine ? "" : n.fromName } : null,
-  };
-  feedItems.unshift(item);
+function addFeedItem(item) {
+  feedItems.unshift({ sentAtMs: Date.now(), read: false, ...item });
   feedItems.sort((a, b) => b.sentAtMs - a.sentAtMs);
   $("bell-wrap").classList.remove("hidden");
   renderNotifications(lastNotifData);
-  if (item.joinRoom) showChatInviteToast(item);
+  if (item.joinRoom) showChatInviteToast(feedItems.find((f) => f.id === item.id));
 }
 
 // ---- Live chat (AWS AppSync Events) -----------------------------------------
-// Importing a playlist makes the server publish a MATCH with a new room to the
-// matches channel. "Start chat" publishes "<name> wants to chat with you" to
-// the requests channel. Either way, "Open chat" opens /chat/ in a new tab,
-// where the two people talk over the room's channel.
+// "Open chat" opens /chat/ in a new tab, where two people talk over the
+// room's channel. Rooms come from matches (below) or from "Start chat", which
+// publishes "<name> wants to chat with you" to the requests channel.
 const live = APPSYNC ? new AppSyncEvents(APPSYNC) : null;
 const REQUESTS_CHANNEL = live && live.channel("requests");
+const MATCHES_CHANNEL = live && live.channel("matches");
+const ROOM_RE = /^[0-9a-f-]{36}$/;
 
-function onFeedEvent(e) {
-  if (!["MATCH", "CHAT_REQUEST"].includes(e.type) || typeof e.id !== "string"
-      || typeof e.message !== "string" || seenFeed.has(e.id)) return;
+function onChatRequest(e) {
+  if (e.type !== "CHAT_REQUEST" || typeof e.id !== "string" || typeof e.message !== "string"
+      || !ROOM_RE.test(e.roomId) || e.clientId === CLIENT_ID || seenFeed.has(e.id)) return;
   seenFeed.add(e.id);
-  addFeedEvent(e);
+  addFeedItem({
+    id: e.id, title: "Chat request", text: e.message, detail: e.fromName ? `from ${e.fromName}` : "",
+    joinRoom: { room: e.roomId, withName: e.fromName },
+  });
+}
+
+// ---- Matches between people on any computer (AWS AppSync) -------------------
+// Each computer runs its own server, so matching people across computers
+// happens here: importing a playlist publishes ARRIVED to the matches channel,
+// every page whose person has already imported answers with a MATCH naming a
+// new chat room for the two of them, and both pages say "You've received a
+// match!". The first person to arrive hears from no one, so gets nothing.
+const liveMatches = new Map();  // other page's CLIENT_ID -> { name, room }
+
+function announceArrival() {
+  if (!live) return;
+  live.publish(MATCHES_CHANNEL, { type: "ARRIVED", id: crypto.randomUUID(), clientId: CLIENT_ID, name: myName() })
+    .catch((err) => { $("error").textContent = err.message; });
+}
+
+function onMatchEvent(e) {
+  if (!me || e.clientId === CLIENT_ID || typeof e.clientId !== "string" || typeof e.name !== "string") return;
+  const name = e.name.slice(0, 60);
+  if (e.type === "ARRIVED") {
+    // Someone new imported a playlist: give the two of us a room (the same
+    // one again if we've already matched) and tell them about it.
+    const known = liveMatches.get(e.clientId);
+    const room = known ? known.room : crypto.randomUUID();
+    live.publish(MATCHES_CHANNEL, { type: "MATCH", id: crypto.randomUUID(), clientId: CLIENT_ID, to: e.clientId, name: myName(), roomId: room })
+      .catch(() => {});
+    if (!known) addLiveMatch(e.clientId, name, room);
+  } else if (e.type === "MATCH" && e.to === CLIENT_ID && ROOM_RE.test(e.roomId) && !liveMatches.has(e.clientId)) {
+    addLiveMatch(e.clientId, name, e.roomId);
+  }
+}
+
+function addLiveMatch(clientId, name, room) {
+  liveMatches.set(clientId, { name, room });
+  addFeedItem({ id: room, title: "New match", text: "You've received a match!", detail: `with ${name}`, joinRoom: { room, withName: name } });
+  if (waitingForMatches) renderLiveMatches();
+}
+
+// When nobody on this server matched us, the match section lists the people
+// matched over AppSync instead.
+let waitingForMatches = false;
+
+function renderLiveMatches() {
+  $("best").replaceChildren(...[...liveMatches.values()].map(({ name, room }) =>
+    el("div", { class: "best" },
+      el("div", { class: "avatar" }, name[0].toUpperCase()),
+      el("div", {},
+        el("div", { class: "name" }, name),
+        el("div", { class: "score" }, "Matched just now"),
+        joinChatButton({ joinRoom: { room, withName: name } }, "message-btn")))));
 }
 
 if (live) {
-  live.subscribe(REQUESTS_CHANNEL, onFeedEvent);
-  live.subscribe(live.channel("matches"), onFeedEvent);
+  live.subscribe(REQUESTS_CHANNEL, onChatRequest);
+  live.subscribe(MATCHES_CHANNEL, onMatchEvent);
 }
 
 function myName() {
@@ -699,8 +746,8 @@ function startChatButton(withName, cls = "message-btn") {
   return btn;
 }
 
-function joinChatButton(item) {
-  const btn = el("button", { type: "button" }, "Open chat");
+function joinChatButton(item, cls = "") {
+  const btn = el("button", { class: cls, type: "button" }, "Open chat");
   btn.onclick = () => {
     closeNotifPanel();
     $("toast-slot").querySelector(`[data-room="${item.joinRoom.room}"]`)?.remove();
