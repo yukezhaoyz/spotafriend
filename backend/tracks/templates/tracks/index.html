@@ -639,7 +639,7 @@ function addFeedItem(item) {
   feedItems.sort((a, b) => b.sentAtMs - a.sentAtMs);
   $("bell-wrap").classList.remove("hidden");
   renderNotifications(lastNotifData);
-  if (item.joinRoom) showChatInviteToast(feedItems.find((f) => f.id === item.id));
+  showFeedToast(feedItems.find((f) => f.id === item.id));
 }
 
 // ---- Live chat (AWS AppSync Events) -----------------------------------------
@@ -649,6 +649,7 @@ function addFeedItem(item) {
 const live = APPSYNC ? new AppSyncEvents(APPSYNC) : null;
 const REQUESTS_CHANNEL = live && live.channel("requests");
 const MATCHES_CHANNEL = live && live.channel("matches");
+const ANNOUNCEMENTS_CHANNEL = live && live.channel("announcements");
 const ROOM_RE = /^[0-9a-f-]{36}$/;
 
 function onChatRequest(e) {
@@ -685,7 +686,10 @@ function onMatchEvent(e) {
     const room = known ? known.room : crypto.randomUUID();
     live.publish(MATCHES_CHANNEL, { type: "MATCH", id: crypto.randomUUID(), clientId: CLIENT_ID, to: e.clientId, name: myName(), roomId: room })
       .catch(() => {});
-    if (!known) addLiveMatch(e.clientId, name, room);
+    if (!known) {
+      addLiveMatch(e.clientId, name, room);
+      announceMatch([CLIENT_ID, e.clientId], [myName(), name]);
+    }
   } else if (e.type === "MATCH" && e.to === CLIENT_ID && ROOM_RE.test(e.roomId) && !liveMatches.has(e.clientId)) {
     addLiveMatch(e.clientId, name, e.roomId);
   }
@@ -711,9 +715,25 @@ function renderLiveMatches() {
         joinChatButton({ joinRoom: { room, withName: name } }, "message-btn")))));
 }
 
+// Every new pair is also announced to everyone else on the site: the page that
+// makes the pair's room publishes MATCHED to the announcements channel.
+function announceMatch(clientIds, names) {
+  live.publish(ANNOUNCEMENTS_CHANNEL, { type: "MATCHED", id: crypto.randomUUID(), clientIds, names }).catch(() => {});
+}
+
+function onAnnouncement(e) {
+  if (e.type !== "MATCHED" || typeof e.id !== "string" || seenFeed.has(e.id)
+      || !Array.isArray(e.clientIds) || !Array.isArray(e.names) || e.names.length !== 2) return;
+  seenFeed.add(e.id);
+  if (e.clientIds.includes(CLIENT_ID)) return;  // the pair hear "You've received a match!" instead
+  const [a, b] = e.names.map((n) => String(n).slice(0, 60));
+  addFeedItem({ id: e.id, title: "New match on Spotafriend", text: `${a} and ${b} just matched!`, detail: "" });
+}
+
 if (live) {
   live.subscribe(REQUESTS_CHANNEL, onChatRequest);
   live.subscribe(MATCHES_CHANNEL, onMatchEvent);
+  live.subscribe(ANNOUNCEMENTS_CHANNEL, onAnnouncement);
 }
 
 function myName() {
@@ -756,11 +776,15 @@ function joinChatButton(item, cls = "") {
   return btn;
 }
 
-function showChatInviteToast(item) {
+function showFeedToast(item) {
+  // An announcement never bumps a pop-up that has an "Open chat" button; it's still in the bell.
+  if (!item.joinRoom && $("toast-slot").querySelector('[role="alertdialog"]')) return;
+  const key = item.joinRoom ? item.joinRoom.room : item.id;
   $("toast-slot").replaceChildren(
-    el("div", { class: "toast", role: "alertdialog", "aria-label": item.title, "data-room": item.joinRoom.room },
-      el("strong", {}, item.title), item.text, el("div", { class: "actions" }, joinChatButton(item))));
-  setTimeout(() => $("toast-slot").querySelector(`[data-room="${item.joinRoom.room}"]`)?.remove(), TOAST_MS * 3);
+    el("div", { class: "toast", role: item.joinRoom ? "alertdialog" : "status", "aria-label": item.title, "data-room": key },
+      el("strong", {}, item.title), item.text,
+      item.joinRoom ? el("div", { class: "actions" }, joinChatButton(item)) : null));
+  setTimeout(() => $("toast-slot").querySelector(`[data-room="${key}"]`)?.remove(), TOAST_MS * (item.joinRoom ? 3 : 1));
 }
 
 // ---- Notifications -------------------------------------------------------

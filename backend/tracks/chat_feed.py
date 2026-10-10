@@ -10,6 +10,9 @@ Channels, all in the SPOTAFRIEND_APPSYNC_NAMESPACE namespace ("chat"):
   /chat/matches         importing a playlist posts ARRIVED here; every page
                         whose person already imported answers with a MATCH
                         naming a new room, and both say "You've received a match!".
+  /chat/announcements   the page that makes a new pair's room also posts
+                        MATCHED here, so everyone else on the site hears
+                        "<a> and <b> just matched!".
   /chat/rooms/<room>    one per chat; CHAT_MESSAGE events, plus HELLO/HISTORY
                         so someone who joins late gets the messages they missed.
 
