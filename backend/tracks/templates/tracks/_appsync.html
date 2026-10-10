@@ -1,0 +1,137 @@
+{{ appsync|json_script:"appsync-config" }}
+<script>
+// ---- Live chat transport (AWS AppSync Events) -------------------------------
+// One WebSocket per page that subscribes to channels and publishes to them.
+// Protocol: https://docs.aws.amazon.com/appsync/latest/eventapi/event-api-websocket-protocol.html
+// APPSYNC is null while live chat is off (see tracks/chat_feed.py).
+const APPSYNC = JSON.parse(document.getElementById("appsync-config").textContent);
+
+class AppSyncEvents {
+  constructor(config, { onStatus = () => {} } = {}) {
+    this.config = config;
+    this.onStatus = onStatus;   // ("connecting" | "live" | "reconnecting" | "problem", detail)
+    this.subs = new Map();      // id -> { channel, onEvent, onReady }
+    this.publishes = new Map(); // id -> { resolve, reject, timer }
+    this.outbox = [];           // messages waiting for the connection
+    this.ready = false;
+    this.retries = 0;
+    this.connect();
+  }
+
+  channel(...segments) {
+    return `/${this.config.namespace}/${segments.join("/")}`;
+  }
+
+  auth() {
+    return { host: this.config.httpDomain, "x-api-key": this.config.apiKey };
+  }
+
+  connect() {
+    this.onStatus(this.retries ? "reconnecting" : "connecting");
+    const header = btoa(JSON.stringify(this.auth())).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const ws = new WebSocket(`wss://${this.config.realtimeDomain}/event/realtime`,
+      ["aws-appsync-event-ws", `header-${header}`]);
+    this.ws = ws;
+    this.ready = false;
+    ws.onopen = () => ws.send(JSON.stringify({ type: "connection_init" }));
+    ws.onmessage = (e) => this.handle(JSON.parse(e.data));
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      this.ready = false;
+      clearTimeout(this.kaTimer);
+      this.onStatus("reconnecting");
+      // Jittered exponential backoff, as AWS recommends.
+      const delay = Math.min(30000, 1000 * 2 ** this.retries++) * (0.5 + Math.random() / 2);
+      setTimeout(() => this.connect(), delay);
+    };
+  }
+
+  // AppSync sends "ka" about once a minute; silence past the timeout means a dead socket.
+  keepAlive() {
+    clearTimeout(this.kaTimer);
+    const ws = this.ws;
+    this.kaTimer = setTimeout(() => ws.close(), this.kaTimeoutMs);
+  }
+
+  send(message) {
+    if (this.ready) this.ws.send(JSON.stringify(message));
+    else this.outbox.push(message);
+  }
+
+  handle(msg) {
+    const sub = this.subs.get(msg.id);
+    switch (msg.type) {
+      case "connection_ack":
+        this.ready = true;
+        this.retries = 0;
+        this.kaTimeoutMs = msg.connectionTimeoutMs || 300000;
+        this.keepAlive();
+        for (const [id, s] of this.subs) this.ws.send(JSON.stringify(this.subscribeMessage(id, s.channel)));
+        for (const m of this.outbox.splice(0)) this.ws.send(JSON.stringify(m));
+        break;
+      case "ka":
+        this.keepAlive();
+        break;
+      case "subscribe_success":
+        this.onStatus("live");
+        sub?.onReady?.();
+        break;
+      case "data":
+        // Each event arrives as the JSON string it was published as.
+        for (const raw of [].concat(msg.event)) {
+          try {
+            let event = typeof raw === "string" ? JSON.parse(raw) : raw;
+            if (typeof event === "string") event = JSON.parse(event);
+            sub?.onEvent(event);
+          } catch (_) { /* not one of ours */ }
+        }
+        break;
+      case "publish_success":
+      case "publish_error": {
+        const p = this.publishes.get(msg.id);
+        if (!p) break;
+        this.publishes.delete(msg.id);
+        clearTimeout(p.timer);
+        if (msg.type === "publish_success" && !(msg.failed || []).length) p.resolve();
+        else p.reject(new Error(this.errorText(msg, "AppSync didn't accept that message")));
+        break;
+      }
+      case "subscribe_error":
+      case "broadcast_error":
+      case "error":
+      case "connection_error":
+        this.onStatus("problem", this.errorText(msg, "AppSync reported an error"));
+        break;
+    }
+  }
+
+  errorText(msg, fallback) {
+    const e = (msg.errors || [])[0];
+    return e ? `${fallback}: ${e.message || e.errorType}` : fallback;
+  }
+
+  subscribeMessage(id, channel) {
+    return { type: "subscribe", id, channel, authorization: this.auth() };
+  }
+
+  // onReady runs on every (re)subscribe, so pages can catch up after a dropped connection.
+  subscribe(channel, onEvent, onReady) {
+    const id = crypto.randomUUID();
+    this.subs.set(id, { channel, onEvent, onReady });
+    if (this.ready) this.ws.send(JSON.stringify(this.subscribeMessage(id, channel)));
+    return id;
+  }
+
+  publish(channel, event) {
+    const id = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.publishes.delete(id);
+        reject(new Error("AppSync didn't answer; check your connection"));
+      }, 10000);
+      this.publishes.set(id, { resolve, reject, timer });
+      this.send({ type: "publish", id, channel, events: [JSON.stringify(event)], authorization: this.auth() });
+    });
+  }
+}
+</script>

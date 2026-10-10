@@ -142,22 +142,3 @@ def _publish(email, subject, body):
         )
     except Exception:
         logger.exception("Sending an email alert to %s failed", email)
-
-
-def post_to_topic(subject, message):
-    """Publish a message straight to the SNS topic, so every subscriber
-    without a filter policy gets it. Returns the SNS message id."""
-    if not message:
-        raise EmailAlertError("Write a message first")
-    if MODE == "log":
-        print(f"[email-alerts] (log mode) would post to the topic: {subject} | {message}")
-        return "log-mode"
-    try:
-        client, topic_arn = _sns()
-        kwargs = {"TopicArn": topic_arn, "Message": message}
-        if subject:
-            # SNS caps email subjects at 100 characters.
-            kwargs["Subject"] = subject[:100]
-        return client.publish(**kwargs)["MessageId"]
-    except Exception as e:
-        raise EmailAlertError(f"Couldn't post to SNS: {e}") from e
