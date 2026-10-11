@@ -5,9 +5,9 @@ problem, show the product as a user would, and make the value obvious.
 
 - **No people on camera.** The characters are their screens: **Person A** is a laptop,
   **Person B** is a phone. Hands are fine; faces never appear.
-- **Person A** sets up first with the **Sunday Morning Coffee** demo playlist.
-- **Person B** sets up second with **Late Night Indie**. They match at **59%**
-  ("both into mellow songs", "both into vocal tracks").
+- **Person A** sets up first with the **Late Night Indie** demo playlist.
+- **Person B** sets up second with **Road Trip Country**. They match at **85%**
+  ("both into vocal tracks", "both into mellow songs"), the highest-scoring pair of demo playlists.
 - Both open the same public URL (see "Sharing it with a public URL" in the README).
 - Narration is about 155 words, read over quiet café jazz.
 
@@ -19,7 +19,7 @@ problem, show the product as a user would, and make the value obvious.
 |---|---|---|
 | 0:00–0:04 | **Map animation:** thin lines arc from cities around the world (Seoul, Mumbai, São Paulo, Lagos, Shanghai) and all land on **Vancouver**, right as the narration says "Northeastern Vancouver". | Google Earth Studio (free), or a Keynote/PowerPoint slide with Magic Move, recorded as video. |
 | 0:04–0:07 | **Vancouver, no faces:** the SkyTrain gliding past, the waterfront, the Northeastern Vancouver building. | Free stock footage from Pexels or Pixabay ("Vancouver SkyTrain", "Vancouver waterfront"), or film the building yourselves. |
-| 0:07–0:12 | **The friend-app problem:** hands swiping through grey profile cards that are just a photo placeholder and a one-line bio ("hi! 23 · likes travel"). Cut between **morning** (coffee cup on a café table, earbuds: Person A) and **night** (desk lamp, headphones: Person B). | Mock the cards up in Figma, Canva or Keynote; don't use a real app's screens or logo. Film over the shoulder, showing only the phone and hands. |
+| 0:07–0:12 | **The friend-app problem:** hands swiping through grey profile cards that are just a photo placeholder and a one-line bio ("hi! 23 · likes travel"). Cut between **night** (desk lamp, headphones: Person A) and **day** (car dashboard or café table, earbuds: Person B). | Mock the cards up in Figma, Canva or Keynote; don't use a real app's screens or logo. Film over the shoulder, showing only the phone and hands. |
 
 Captions timed to the narration: **new city** · **new country** · **nobody we know**.
 
@@ -36,7 +36,7 @@ Person A's laptop (only the laptop and hands in shot).
 
 ## 0:15–0:27 · Setup: taste profile and distance
 
-**On screen:** type Person A's name, click **Sunday Morning Coffee**, drag the slider to
+**On screen:** type Person A's name, click **Late Night Indie**, drag the slider to
 **Within 5 miles**, click **Find my people**. The playlist's songs appear.
 
 > "Person A adds a playlist. Spotafriend reads how each song sounds — mood, energy, how
@@ -45,12 +45,12 @@ Person A's laptop (only the laptop and hands in shot).
 
 ## 0:27–0:41 · The match and why
 
-**On screen:** Person B sets up with **Late Night Indie**. "You've received a match!" appears
-on both screens. Zoom in on Person B's card: **59% match · both into mellow songs · both into
-vocal tracks**.
+**On screen:** Person B sets up with **Road Trip Country**. "You've received a match!" appears
+on both screens. Zoom in on Person B's card: **85% match · both into vocal tracks · both into
+mellow songs**.
 
 > "When Person B joins, they're both notified right away. The match card says why — both lean
-> mellow and vocal — even though one listens to café acoustic and the other to late-night indie."
+> mellow and vocal — even though one listens to late-night indie and the other to road-trip country."
 
 ## 0:41–0:53 · Chat and song recommendations
 
@@ -80,7 +80,7 @@ the screen already show both.
 
 - **Fresh server:** restart it just before recording (everything is in memory), start the
   tunnel (`.claude/skills/public-url/start-tunnel.sh`), and scan its QR code on the phone.
-- **Set up Person A first.** Person B's match card then shows the 59% score and the reasons.
+- **Set up Person A first.** Person B's match card then shows the 85% score and the reasons.
 - **Allow location on both devices before rolling**, so no permission pop-up appears on camera.
 - **Record each screen on its own**, then cut them so "You've received a match!" lands on
   both at the same moment.
