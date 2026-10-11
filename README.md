@@ -2,9 +2,11 @@
 
 **Find your people through the music you love.**
 
-Spotafriend takes the songs from a Spotify playlist, analyzes them, builds a "taste profile," and matches the listener with like-minded people. Matches can send each other a chat request and, once it's accepted, chat and share songs.
+Spotafriend takes the songs from a playlist, analyzes how they sound, builds a "taste profile," and matches the listener with like-minded people nearby. When two people match, both are notified instantly, and they can open a live chat and recommend songs to each other.
 
-> **Scope:** A hackathon demo that runs **entirely on one laptop**. No login, no deployment. A Django server keeps everything in an in-memory SQLite database that's rebuilt from the dataset each time it starts.
+> **Scope:** A hackathon demo. The server runs on one laptop and keeps everything in an in-memory SQLite database that's rebuilt from the dataset each time it starts; no login, nothing saved. Live matching and chat go through **AWS AppSync**, and a free **Cloudflare tunnel** gives the laptop a public `https://` URL so phones and other laptops can join.
+>
+> 📚 More in [`docs/`](docs/): [how we built it](docs/build-story.md) (what we tried and why we switched) and the [live demo script](docs/hackathon-demo-script.md).
 
 ---
 
@@ -50,13 +52,15 @@ It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public 
 
 ## 🎬 Demo Walkthrough
 
-1. Open http://localhost:8000, type a name, and click one of the **demo playlist** buttons (or paste one of the links below), then **Find my people**.
-2. The page lists the playlist's songs (songs missing from the dataset are greyed out) and then shows your **closest match**, Riley, with a score, reasons, shared songs and artists.
-3. About 6 seconds later, Riley sends a **chat request** pop-up. Click **Accept**: the chat opens and Riley says hi.
-4. Chat, or click **🎵** to **share a song** from your playlist; Riley reacts to it.
-5. Click **Message** on another match to send them a chat request; made-up listeners accept after ~2 seconds.
-6. The **🔔 bell** collects matches, messages and chat requests.
-7. To show two real people chatting, open a second browser tab and import a different playlist.
+The demo uses two devices on the same public URL (see "Sharing it with a public URL" above) and needs the AppSync settings in `.env` (see "Configuration").
+
+1. **Person A** (laptop): type a name, click the **Late Night Indie** demo playlist, set the distance slider (e.g. **Within 5 miles**), and click **Find my people**. The page lists the songs (ones missing from the dataset are greyed out) and says no one else is here yet. Allow location when the browser asks.
+2. **Person B** (phone): do the same with **Road Trip Country**.
+3. Both screens show **"You've received a match!"** at once. Person B's match card shows the score and why: **85% · both into vocal tracks · both into mellow songs**, with no songs in common. Everyone else with the site open sees "A and B just matched!".
+4. Both tap **Open chat**: a chat window titled with the other person's name. Messages arrive instantly.
+5. Tap **+** in the chat, search a song or artist, and send it: it arrives as a **"Recommended a song"** card.
+
+**Rehearsing alone:** set `SPOTAFRIEND_FAKE_USERS=on` to bring back the 18 made-up listeners and **Riley**, a demo friend who always matches you at ~98–99% by mirroring your playlist. Riley sends a chat request a few seconds after you import (click **Accept**), and replies to messages and songs you share with **🎵**. **Message** on another match sends a chat request that made-up listeners accept after ~2 seconds.
 
 **Demo playlist links** (the same every time the server starts):
 
@@ -79,20 +83,21 @@ These are **made-up playlists stored in the app**, not real Spotify playlists; r
 
 1. **Import** – Paste a Spotify playlist link; we get its songs.
 2. **Analyze** – We look up each song's audio features in a local dataset and build a taste profile.
-3. **Match** – We compare that profile against other listeners and rank the most compatible.
-4. **Chat** – Send a chat request to a match; once accepted, chat with shared artists and songs as icebreakers.
+3. **Match** – We compare that profile against other listeners nearby; when two people match, both are notified instantly, with the reasons why.
+4. **Chat** – One tap opens a live chat with your match, and songs make the icebreaker: recommend one from the catalog.
 
 ---
 
 ## ✨ What's Built
 
-- **Playlist import** from a link (share links, `spotify:playlist:` links or bare IDs), using the built-in demo playlists.
-- **Taste profile & matching** on the sound of your songs, with plain-English reasons ("both into mellow songs").
-- **18 made-up listeners + Riley**, a demo friend who always matches you at ~98–99% by mirroring whatever playlist you import. Off by default; turn them on with `SPOTAFRIEND_FAKE_USERS=on`.
-- **Chat requests** with Accept / Decline; messages unlock once accepted.
-- **Chat** with song sharing; made-up listeners accept requests and reply on their own.
-- **Notifications:** a bell with unread count, pop-ups for messages and chat requests.
-- **Live chat (optional):** when two people import a playlist, on the same computer or different ones, both get "You've received a match!" through AWS AppSync and can open a shared chat room from it. **Start chat** on a match sends "*name* wants to chat with you" to every open page through AWS AppSync. Both people then chat live on a separate page, with messages going over an AppSync WebSocket.
+- **Playlist import** from a link (share links, `spotify:playlist:` links or bare IDs), using the built-in demo playlists, with coverage ("27 songs · 25 analyzed").
+- **Taste profile & matching** on the sound of your songs, with plain-English reasons ("both into mellow songs") and the songs and artists you share.
+- **Distance slider** from "Within 1 mile" to "Across the world", using the browser's location rounded to about half a mile.
+- **Instant match notifications across devices** ("You've received a match!") through AWS AppSync, plus "A and B just matched!" announcements for everyone else.
+- **Live chat** between two people over an AppSync WebSocket, with **song recommendations** from the whole catalog (the **+** button). Nothing is stored.
+- **Public URL with a QR code** through a free Cloudflare tunnel (one script, also a Claude Code skill).
+- **In-app chat** (the original version): chat requests with Accept / Decline, song sharing from your playlist, a notification bell and pop-ups.
+- **18 made-up listeners + Riley** for rehearsing alone; off by default (`SPOTAFRIEND_FAKE_USERS=on`).
 - **Email alerts (optional)** through AWS SNS for people who are away from the site.
 - **SQL access** to the data for exploring it (read-only).
 
@@ -114,6 +119,7 @@ cp .env.example .env
 | `SPOTAFRIEND_SNS_TOPIC_ARN` | The SNS topic to send through, e.g. one a teammate created | empty (use `SPOTAFRIEND_SNS_TOPIC`) |
 | `SPOTAFRIEND_SNS_TOPIC` | Topic name to look up or create in your own AWS account | `spotafriend-alerts` |
 | `SPOTAFRIEND_APPSYNC_HTTP_DOMAIN`, `SPOTAFRIEND_APPSYNC_REALTIME_DOMAIN`, `SPOTAFRIEND_APPSYNC_API_KEY` | The AppSync Event API that live chat runs on (see "Live chat" below). Off while empty | empty |
+| `SPOTAFRIEND_FAKE_USERS` | `on` brings back Riley and the 18 made-up listeners (for rehearsing alone) | `off` |
 | `AWS_REGION` | AWS region | from the topic ARN, then `~/.aws/config` |
 | `SPOTAFRIEND_AWAY_SECONDS` | Seconds without activity before someone counts as away | `60` |
 | `SPOTAFRIEND_SITE_URL` | Link put in alert emails | `http://localhost:8000` |
@@ -185,26 +191,29 @@ cd backend
 
 ---
 
-## 🏗️ Architecture (local)
+## 🏗️ Architecture
 
 ```
-┌────────────────────────┐   HTTP (page checks for   ┌──────────────────────────┐
-│  Browser               │   updates every ~2 s)     │  Django server :8000     │
-│  one page: import,     │ ◀───────────────────────▶ │  backend/tracks/         │
-│  matches, chat, bell   │                           │  views · matching · chat │
-└────────────────────────┘                           │  notifications           │
-                                                     └─────┬──────────────┬─────┘
-                                       in-memory SQLite    │              │  optional
-                                  ┌────────────────────────▼──┐     ┌─────▼─────────┐
-                                  │ dataset + users, matches, │     │ AWS SNS       │
-                                  │ chats, notifications      │     │ email alerts  │
-                                  └───────────────────────────┘     └───────────────┘
+ Phone / laptop browsers                     Laptop
+┌──────────────────────────┐   HTTPS   ┌───────────────────┐   ┌──────────────────────────┐
+│ index.html + chat.html   │◀─────────▶│ Cloudflare tunnel │──▶│ Django 4.2 :8000         │
+│ plain JavaScript         │           │ (cloudflared)     │   │ matching · chat · bell   │
+└────────────┬─────────────┘           └───────────────────┘   │ in-memory SQLite:        │
+             │ WebSocket (publish/subscribe)                   │ 114k tracks + users      │
+             ▼                                                 └────────────┬─────────────┘
+┌──────────────────────────────────────────┐                                │ optional
+│ AWS AppSync Events (namespace "chat")    │                   ┌────────────▼─────────────┐
+│ /matches  /announcements  /requests      │                   │ AWS SNS: email alerts    │
+│ /rooms/<room id>                          │                   │ when you're away         │
+└──────────────────────────────────────────┘                   └──────────────────────────┘
 ```
 
 - **Backend:** Django 4.2, Python
 - **Database:** SQLite in memory (rebuilt from `dataset.csv` on each start)
-- **Frontend:** one HTML page with plain JavaScript (`backend/tracks/templates/tracks/index.html`)
-- **Live updates:** the page checks for new messages and notifications every 1.5–2 seconds
+- **Frontend:** two HTML pages with plain JavaScript, no build step (`index.html`, `chat.html`)
+- **Real-time:** AWS AppSync Events; each page keeps one WebSocket to AWS for matches, announcements and chat. The browser talks to AWS directly; the server only hands out the endpoint and key.
+- **In-app chat and the bell:** the page checks the server for news every 1.5–2 seconds
+- **Public URL:** Cloudflare quick tunnel (`cloudflared`), QR code via `segno`
 - **Email:** AWS SNS via `boto3` (optional)
 
 The server handles one request at a time on purpose: the shared in-memory database fails with "database table is locked" when two requests write at once, and requests take only milliseconds.
@@ -262,6 +271,7 @@ spotafriend/
 ├── dataset.csv                  # the song dataset (download; gitignored)
 ├── .env.example                 # settings template; copy to .env (gitignored)
 ├── README.md
+├── docs/                        # build story, live demo script
 ├── .claude/skills/public-url/   # Claude Code skill + start-tunnel.sh for a public URL
 └── backend/                     # Django project
     ├── manage.py
@@ -337,16 +347,27 @@ spotafriend/
 - [ ] "Who am I?" user switcher (today, refreshing the page forgets who you are)
 - [x] Chat requests with Accept / Decline
 - [x] Messages; the page checks for new ones every 1.5 s
-- [ ] Instant delivery with WebSockets (instead of checking every few seconds)
+- [x] Instant delivery with WebSockets: live chat over AWS AppSync (the in-app chat still checks every 1.5 s)
 - [x] Start a chat from a match card; history is kept while the server runs
 - [x] Share songs from your playlist in chat
 - [x] Made-up listeners accept requests and reply; first reply mentions a shared artist
 - [x] Notification bell and pop-ups
 - [x] Optional email alerts via AWS SNS
 
-### 7. Demo Prep
+### 7. Live Features (AWS AppSync)
+- [x] AppSync Event API, set up with `manage.py appsync_setup`
+- [x] Match people across computers ("You've received a match!" on both)
+- [x] Announce every match to everyone on the site
+- [x] Live chat rooms; late joiners get missed messages; nothing stored
+- [x] Song recommendations from the catalog in chat
+- [x] Distance slider with rounded browser location
+- [x] Made-up listeners off by default for the real demo
+
+### 8. Demo Prep
 - [x] Dark, Spotify-ish styling; loading and error states
 - [x] Demo walkthrough (above)
+- [x] Public URL and QR code (Cloudflare tunnel script and skill)
+- [x] Live demo script and build story (`docs/`)
 - [ ] Record a backup video
 
 ---
@@ -354,7 +375,7 @@ spotafriend/
 ## 🔭 Out of Scope
 
 - User login / accounts
-- Deployment
+- Hosting on a server (the demo runs on a laptop and is shared through a Cloudflare tunnel)
 - Saving data across restarts
 - Reading other people's private playlists
 - Moderation, blocking, reporting
