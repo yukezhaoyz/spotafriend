@@ -385,11 +385,9 @@ spotafriend/
 
 ## 👥 Team
 
-| Name | Role |
-|---|---|
-| Shoghine Grigoryan | |
-| Shuxin (Doris) Jin | |
-| Thomas Katz | |
-| Oluchi Calista Igwilo | |
-| Xiaoying (Sarah) Chen | |
-| Yuke Zhao | |
+- Shoghine Grigoryan
+- Shuxin (Doris) Jin
+- Thomas Katz
+- Oluchi Calista Igwilo
+- Xiaoying (Sarah) Chen
+- Yuke Zhao
