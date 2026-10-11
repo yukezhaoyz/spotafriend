@@ -11,40 +11,44 @@ problem, show the product as a user would, and make the value obvious.
 
 ---
 
-## 0:00–0:09 · The problem
+## 0:00–0:12 · The problem
 
-**On screen:** Vancouver B-roll (SkyTrain, campus, a café), then a student scrolling a
-friend app full of photos and bios.
+**On screen:** Vancouver B-roll (SkyTrain, the waterfront, the Northeastern Vancouver
+campus), then the two characters, who don't know each other yet:
 
-> "A lot of us at Northeastern Vancouver came here from far away. Making real friends
-> takes time — and friend apps match you on a photo and a short bio."
+- **Person A**, morning: alone in a café with earbuds, scrolling a friend app full of
+  photos and bios.
+- **Person B**, late evening: at a desk with headphones on, doing the same.
 
-## 0:09–0:12 · The idea
+> "Many of us at Northeastern Vancouver moved across the world to study here — new city,
+> new country, nobody we know. You're surrounded by people, but finding *your* people is
+> hard. Friend apps match you on photos and bios — not on what actually makes you click."
 
-**On screen:** the Spotafriend home page.
+## 0:12–0:15 · The idea
+
+**On screen:** Person A opens the Spotafriend home page on a laptop.
 
 > "We think what you listen to is a better place to start."
 
-## 0:12–0:25 · Setup: taste profile and distance
+## 0:15–0:27 · Setup: taste profile and distance
 
 **On screen:** type Person A's name, click **Sunday Morning Coffee**, drag the slider to
 **Within 5 miles**, click **Find my people**. The playlist's songs appear.
 
-> "Person A adds a playlist. Spotafriend looks up how each song sounds — mood, energy, how
-> acoustic or danceable it is — from data on 114,000 tracks, and builds a taste profile.
-> The distance slider keeps matches nearby."
+> "Person A adds a playlist. Spotafriend reads how each song sounds — mood, energy, how
+> acoustic it is — across 114,000 tracks, and builds a taste profile. The slider keeps
+> matches nearby."
 
-## 0:25–0:40 · The match and why
+## 0:27–0:41 · The match and why
 
 **On screen:** Person B sets up with **Late Night Indie**. "You've received a match!" appears
 on both screens. Zoom in on Person B's card: **59% match · both into mellow songs · both into
 vocal tracks**.
 
-> "When Person B joins, they're matched and both notified right away. The match card explains
-> it in plain terms — both lean mellow and vocal — even though one listens to café acoustic
-> and the other to late-night indie."
+> "When Person B joins, they're both notified right away. The match card says why — both lean
+> mellow and vocal — even though one listens to café acoustic and the other to late-night indie."
 
-## 0:40–0:53 · Chat and song recommendations
+## 0:41–0:53 · Chat and song recommendations
 
 **On screen:** both open the chat from the notification ("Chat with Person B" / "Chat with Person A").
 
@@ -52,8 +56,8 @@ vocal tracks**.
 - Person B taps **+**, types an artist, and sends a song.
 - Person A: *"haven't heard this one before. any others like it?"*
 
-> "They open a chat straight from the notification. The plus button searches the whole
-> song catalog, so recommending a track takes seconds."
+> "They open a chat straight from the notification, and the plus button finds any song to
+> recommend."
 
 ## 0:53–1:00 · Close
 
@@ -62,8 +66,9 @@ QR code.
 
 > "An easier first conversation — starting from something you already share. That's Spotafriend."
 
-**Timing:** tight but fits. If a run-through comes out over 60 seconds, drop "or danceable"
-and "from data on 114,000 tracks"; the screen already shows the data.
+**Timing:** about 155 words, so it's tight. If a run-through comes out over 60 seconds,
+drop "new city, new country, nobody we know" and "across 114,000 tracks"; the B-roll and
+the screen already show both.
 
 ---
 
@@ -76,7 +81,8 @@ and "from data on 114,000 tracks"; the screen already shows the data.
 - **Record each screen on its own**, then cut them so "You've received a match!" lands on
   both at the same moment.
 - **Song to recommend:** something soft and vocal that fits both playlists.
-- **B-roll:** five to eight seconds of SkyTrain, campus and a café, shot on a phone, is plenty.
+- **B-roll:** a few seconds each of SkyTrain, the waterfront and campus, plus the two character
+  shots (Person A in a café in the morning, Person B at a desk at night), shot on a phone.
 - **Music:** a royalty-free café jazz or lo-fi track (YouTube Audio Library or Pixabay Music),
   kept well under the narration.
 - **Record the narration last**, in your own voice, over the finished cut.
