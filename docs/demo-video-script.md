@@ -3,8 +3,8 @@
 A narrated walkthrough for the Datathon Season 2026 demo video: sell the
 problem, show the product as a user would, and make the value obvious.
 
-- **Jiwoo** sets up first on a laptop with the **Sunday Morning Coffee** demo playlist.
-- **Mateo** sets up second on a phone with **Late Night Indie**. They match at **59%**
+- **Person A** sets up first on a laptop with the **Sunday Morning Coffee** demo playlist.
+- **Person B** sets up second on a phone with **Late Night Indie**. They match at **59%**
   ("both into mellow songs", "both into vocal tracks").
 - Both open the same public URL (see "Sharing it with a public URL" in the README).
 - Narration is about 155 words, read over quiet café jazz.
@@ -27,30 +27,30 @@ friend app full of photos and bios.
 
 ## 0:12–0:25 · Setup: taste profile and distance
 
-**On screen:** type "Jiwoo", click **Sunday Morning Coffee**, drag the slider to
+**On screen:** type Person A's name, click **Sunday Morning Coffee**, drag the slider to
 **Within 5 miles**, click **Find my people**. The playlist's songs appear.
 
-> "Jiwoo adds a playlist. Spotafriend looks up how each song sounds — mood, energy, how
+> "Person A adds a playlist. Spotafriend looks up how each song sounds — mood, energy, how
 > acoustic or danceable it is — from data on 114,000 tracks, and builds a taste profile.
 > The distance slider keeps matches nearby."
 
 ## 0:25–0:40 · The match and why
 
-**On screen:** Mateo sets up with **Late Night Indie**. "You've received a match!" appears
-on both screens. Zoom in on Mateo's card: **59% match · both into mellow songs · both into
+**On screen:** Person B sets up with **Late Night Indie**. "You've received a match!" appears
+on both screens. Zoom in on Person B's card: **59% match · both into mellow songs · both into
 vocal tracks**.
 
-> "When Mateo joins, they're matched and both notified right away. The match card explains
+> "When Person B joins, they're matched and both notified right away. The match card explains
 > it in plain terms — both lean mellow and vocal — even though one listens to café acoustic
 > and the other to late-night indie."
 
 ## 0:40–0:53 · Chat and song recommendations
 
-**On screen:** both open the chat from the notification ("Chat with Mateo" / "Chat with Jiwoo").
+**On screen:** both open the chat from the notification ("Chat with Person B" / "Chat with Person A").
 
-- Mateo: *"hey, saw we matched. your playlist is really good"*
-- Mateo taps **+**, types an artist, and sends a song.
-- Jiwoo: *"haven't heard this one before. any others like it?"*
+- Person B: *"hey, saw we matched. your playlist is really good"*
+- Person B taps **+**, types an artist, and sends a song.
+- Person A: *"haven't heard this one before. any others like it?"*
 
 > "They open a chat straight from the notification. The plus button searches the whole
 > song catalog, so recommending a track takes seconds."
@@ -71,7 +71,7 @@ and "from data on 114,000 tracks"; the screen already shows the data.
 
 - **Fresh server:** restart it just before recording (everything is in memory), start the
   tunnel (`.claude/skills/public-url/start-tunnel.sh`), and scan its QR code on the phone.
-- **Set up Jiwoo first.** Mateo's match card then shows the 59% score and the reasons.
+- **Set up Person A first.** Person B's match card then shows the 59% score and the reasons.
 - **Allow location on both devices before rolling**, so no permission pop-up appears on camera.
 - **Record each screen on its own**, then cut them so "You've received a match!" lands on
   both at the same moment.
