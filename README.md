@@ -36,6 +36,16 @@ Then open **http://localhost:8000**. Startup takes a few seconds while it loads 
 
 > Everything (users, chats, notifications) lives in memory and **resets when the server restarts**. The made-up listeners and demo playlists are recreated each time.
 
+### Sharing it with a public URL
+
+To open the demo on other devices, give the running server a public `https://` address with a free Cloudflare quick tunnel (no account needed). From the project folder, while the server runs:
+
+```bash
+.claude/skills/public-url/start-tunnel.sh
+```
+
+It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public URL: https://….trycloudflare.com` banner. Keep it running during the demo; each start gets a new URL. It has to be `https://` because the page needs a secure context (for `crypto.randomUUID()` and the location used by the distance slider). In Claude Code, the `public-url` skill does the same thing.
+
 ---
 
 ## 🎬 Demo Walkthrough
@@ -252,6 +262,7 @@ spotafriend/
 ├── dataset.csv                  # the song dataset (download; gitignored)
 ├── .env.example                 # settings template; copy to .env (gitignored)
 ├── README.md
+├── .claude/skills/public-url/   # Claude Code skill + start-tunnel.sh for a public URL
 └── backend/                     # Django project
     ├── manage.py
     ├── requirements.txt
