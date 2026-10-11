@@ -6,12 +6,15 @@
 #   start-tunnel.sh            check everything, then run the tunnel (Ctrl-C stops it)
 #   start-tunnel.sh --check    only install cloudflared and check the server
 #
-# PORT (default 8000) is where `manage.py runserver` is listening.
+# PORT (default 8000) is where `manage.py runserver` is listening. Once the URL
+# is known it also shows a QR code for it (needs segno in the project's .venv).
 set -euo pipefail
 
 PORT="${PORT:-8000}"
 INSTALL_DIR="$HOME/.local/bin"
 RELEASES="https://github.com/cloudflare/cloudflared/releases/latest/download"
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV_PYTHON="$SKILL_DIR/../../../.venv/bin/python"
 
 find_cloudflared() {
   if command -v cloudflared >/dev/null 2>&1; then
@@ -61,8 +64,10 @@ echo "Server is up on port $PORT."
 [ "${1:-}" = "--check" ] && exit 0
 
 # --http-host-header: Django only accepts "localhost" (settings.ALLOWED_HOSTS),
-# so requests reach it looking local. The public URL is printed once it's known.
-"$CLOUDFLARED" tunnel --url "http://localhost:$PORT" --http-host-header localhost 2>&1 |
+# so requests reach it looking local. --no-autoupdate: with its output piped,
+# cloudflared would otherwise update itself and restart, under a new URL.
+# The public URL is printed once it's known.
+"$CLOUDFLARED" tunnel --no-autoupdate --url "http://localhost:$PORT" --http-host-header localhost 2>&1 |
   while IFS= read -r line; do
     echo "$line"
     if [[ "$line" =~ (https://[a-z0-9-]+\.trycloudflare\.com) ]]; then
@@ -71,6 +76,12 @@ echo "Server is up on port $PORT."
       echo "  Public URL: ${BASH_REMATCH[1]}"
       echo "  (it can answer with error 530 for the first minute)"
       echo "=================================================================="
+      echo
+      if [ -x "$VENV_PYTHON" ] && "$VENV_PYTHON" -c "import segno" 2>/dev/null; then
+        "$VENV_PYTHON" "$SKILL_DIR/make_qr.py" "${BASH_REMATCH[1]}" || true
+      else
+        echo "(For a QR code: .venv/bin/pip install segno, then restart this script.)"
+      fi
       echo
     fi
   done
