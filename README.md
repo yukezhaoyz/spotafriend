@@ -44,7 +44,7 @@ To open the demo on other devices, give the running server a public `https://` a
 .claude/skills/public-url/start-tunnel.sh
 ```
 
-It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public URL: https://….trycloudflare.com` banner. Keep it running during the demo; each start gets a new URL. It has to be `https://` because the page needs a secure context (for `crypto.randomUUID()` and the location used by the distance slider). In Claude Code, the `public-url` skill does the same thing.
+It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public URL: https://….trycloudflare.com` banner and a QR code people can scan with their phones (the QR code needs `segno`: `.venv/bin/pip install segno`; it's also saved as a PNG). Keep it running during the demo; each start gets a new URL. It has to be `https://` because the page needs a secure context (for `crypto.randomUUID()` and the location used by the distance slider). In Claude Code, the `public-url` skill does the same thing.
 
 ---
 
