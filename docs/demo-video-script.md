@@ -3,8 +3,10 @@
 A narrated walkthrough for the Datathon Season 2026 demo video: sell the
 problem, show the product as a user would, and make the value obvious.
 
-- **Person A** sets up first on a laptop with the **Sunday Morning Coffee** demo playlist.
-- **Person B** sets up second on a phone with **Late Night Indie**. They match at **59%**
+- **No people on camera.** The characters are their screens: **Person A** is a laptop,
+  **Person B** is a phone. Hands are fine; faces never appear.
+- **Person A** sets up first with the **Sunday Morning Coffee** demo playlist.
+- **Person B** sets up second with **Late Night Indie**. They match at **59%**
   ("both into mellow songs", "both into vocal tracks").
 - Both open the same public URL (see "Sharing it with a public URL" in the README).
 - Narration is about 155 words, read over quiet café jazz.
@@ -13,12 +15,13 @@ problem, show the product as a user would, and make the value obvious.
 
 ## 0:00–0:12 · The problem
 
-**On screen:** Vancouver B-roll (SkyTrain, the waterfront, the Northeastern Vancouver
-campus), then the two characters, who don't know each other yet:
+| Time | Shot | How to make it |
+|---|---|---|
+| 0:00–0:04 | **Map animation:** thin lines arc from cities around the world (Seoul, Mumbai, São Paulo, Lagos, Shanghai) and all land on **Vancouver**, right as the narration says "Northeastern Vancouver". | Google Earth Studio (free), or a Keynote/PowerPoint slide with Magic Move, recorded as video. |
+| 0:04–0:07 | **Vancouver, no faces:** the SkyTrain gliding past, the waterfront, the Northeastern Vancouver building. | Free stock footage from Pexels or Pixabay ("Vancouver SkyTrain", "Vancouver waterfront"), or film the building yourselves. |
+| 0:07–0:12 | **The friend-app problem:** hands swiping through grey profile cards that are just a photo placeholder and a one-line bio ("hi! 23 · likes travel"). Cut between **morning** (coffee cup on a café table, earbuds: Person A) and **night** (desk lamp, headphones: Person B). | Mock the cards up in Figma, Canva or Keynote; don't use a real app's screens or logo. Film over the shoulder, showing only the phone and hands. |
 
-- **Person A**, morning: alone in a café with earbuds, scrolling a friend app full of
-  photos and bios.
-- **Person B**, late evening: at a desk with headphones on, doing the same.
+Captions timed to the narration: **new city** · **new country** · **nobody we know**.
 
 > "Many of us at Northeastern Vancouver moved across the world to study here — new city,
 > new country, nobody we know. You're surrounded by people, but finding *your* people is
@@ -26,7 +29,8 @@ campus), then the two characters, who don't know each other yet:
 
 ## 0:12–0:15 · The idea
 
-**On screen:** Person A opens the Spotafriend home page on a laptop.
+**On screen:** the grey profile cards fade out, and the Spotafriend home page fades in on
+Person A's laptop (only the laptop and hands in shot).
 
 > "We think what you listen to is a better place to start."
 
@@ -67,7 +71,7 @@ QR code.
 > "An easier first conversation — starting from something you already share. That's Spotafriend."
 
 **Timing:** about 155 words, so it's tight. If a run-through comes out over 60 seconds,
-drop "new city, new country, nobody we know" and "across 114,000 tracks"; the B-roll and
+drop "new city, new country, nobody we know" and "across 114,000 tracks"; the captions and
 the screen already show both.
 
 ---
@@ -81,10 +85,11 @@ the screen already show both.
 - **Record each screen on its own**, then cut them so "You've received a match!" lands on
   both at the same moment.
 - **Song to recommend:** something soft and vocal that fits both playlists.
-- **B-roll:** a few seconds each of SkyTrain, the waterfront and campus, plus the two character
-  shots (Person A in a café in the morning, Person B at a desk at night), shot on a phone.
+- **Opening footage, no faces:** the map animation, stock clips of Vancouver (Pexels and
+  Pixabay clips are free to use without credit; still keep a list of the ones you use), and
+  hand-and-phone shots with your own mock-up of a friend app. Anyone on the team can be the hands.
 - **Music:** a royalty-free café jazz or lo-fi track (YouTube Audio Library or Pixabay Music),
   kept well under the narration.
 - **Record the narration last**, in your own voice, over the finished cut.
-- **If you're over 60 seconds**, trim the opening B-roll first; keep the match moment and
+- **If you're over 60 seconds**, trim the Vancouver clips first; keep the match moment and
   the song recommendation.
