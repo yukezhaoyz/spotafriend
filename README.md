@@ -48,6 +48,17 @@ To open the demo on other devices, give the running server a public `https://` a
 
 It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public URL: https://….trycloudflare.com` banner and a Quick Response (QR) code people can scan with their phones (the QR code needs `segno`: `.venv/bin/pip install segno`; it's also saved as a Portable Network Graphics (PNG)). Keep it running during the demo; each start gets a new URL. It has to be `https://` because the page needs a secure context (for `crypto.randomUUID()` and the location used by the distance slider). In Claude Code, the `public-url` skill does the same thing.
 
+### Hosting it permanently (Hugging Face Space)
+
+For a link that keeps working without the laptop (for example a QR code at the end of a video), the app can run on a free **Hugging Face Docker Space**, at a permanent `https://<owner>-<space>.hf.space` address. Everything needed is in [`deploy/huggingface/`](deploy/huggingface/):
+
+1. Create a free account at huggingface.co, then **New Space** → SDK **Docker** → template **Blank**, visibility **Public**.
+2. In the Space's **Files** tab, upload `deploy/huggingface/Dockerfile` and `deploy/huggingface/README.md` (replacing the README it made).
+3. In the Space's **Settings → Variables and secrets**, add these **secrets**: `SPOTAFRIEND_APPSYNC_HTTP_DOMAIN`, `SPOTAFRIEND_APPSYNC_REALTIME_DOMAIN`, `SPOTAFRIEND_APPSYNC_API_KEY` (the same three lines as in `.env`), and `SPOTAFRIEND_SECRET_KEY` (any long random text).
+4. The Space builds by itself (a few minutes): it clones this repository's `main` branch and downloads the song dataset from its official Hugging Face mirror (BSD license), so `dataset.csv` is never uploaded. To pick up later changes on `main`, use **Settings → Factory rebuild**.
+
+It runs as one always-on container. A free Space sleeps after about two days without visitors; the next visit wakes it in about a minute. As with the laptop, a restart clears everyone's setup.
+
 ---
 
 ## 🎬 Demo Walkthrough
@@ -120,6 +131,9 @@ cp .env.example .env
 | `SPOTAFRIEND_SNS_TOPIC` | Topic name to look up or create in your own AWS account | `spotafriend-alerts` |
 | `SPOTAFRIEND_APPSYNC_HTTP_DOMAIN`, `SPOTAFRIEND_APPSYNC_REALTIME_DOMAIN`, `SPOTAFRIEND_APPSYNC_API_KEY` | The AppSync Event application programming interface (API) that live chat runs on (see "Live chat" below). Off while empty | empty |
 | `SPOTAFRIEND_FAKE_USERS` | `on` brings back Riley and the 18 made-up listeners (for rehearsing alone) | `off` |
+| `SPOTAFRIEND_DEBUG` | `off` for a hosted copy: plain error pages instead of Django's debug pages | `on` |
+| `SPOTAFRIEND_SECRET_KEY` | Django's secret key; set your own for a hosted copy | a development-only key |
+| `SPOTAFRIEND_ALLOWED_HOSTS` | Extra hostnames the site may be served on, comma-separated (the Space uses `.hf.space`) | empty (only `localhost`) |
 | `AWS_REGION` | AWS region | from the topic Amazon Resource Name (ARN), then `~/.aws/config` |
 | `SPOTAFRIEND_AWAY_SECONDS` | Seconds without activity before someone counts as away | `60` |
 | `SPOTAFRIEND_SITE_URL` | Link put in alert emails | `http://localhost:8000` |
@@ -272,6 +286,7 @@ spotafriend/
 ├── .env.example                 # settings template; copy to .env (gitignored)
 ├── README.md
 ├── docs/                        # build story, live demo script
+├── deploy/huggingface/          # Dockerfile + README for a Hugging Face Space
 ├── .claude/skills/public-url/   # Claude Code skill + start-tunnel.sh for a public URL
 └── backend/                     # Django project
     ├── manage.py
