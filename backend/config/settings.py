@@ -24,9 +24,14 @@ def _load_env_file(path):
 _load_env_file(BASE_DIR.parent / ".env")
 DATASET_CSV = BASE_DIR.parent / "dataset.csv"
 
-SECRET_KEY = "dev-only-not-secret"
-DEBUG = True
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+# The defaults suit running on a laptop. A hosted copy (see deploy/huggingface)
+# sets SPOTAFRIEND_DEBUG=off, its own SPOTAFRIEND_SECRET_KEY, and the extra
+# hostnames it's served on (comma-separated; ".hf.space" covers every Space).
+SECRET_KEY = os.environ.get("SPOTAFRIEND_SECRET_KEY", "dev-only-not-secret")
+DEBUG = os.environ.get("SPOTAFRIEND_DEBUG", "on").lower() != "off"
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"] + [
+    h.strip() for h in os.environ.get("SPOTAFRIEND_ALLOWED_HOSTS", "").split(",") if h.strip()
+]
 
 INSTALLED_APPS = [
     "tracks",
