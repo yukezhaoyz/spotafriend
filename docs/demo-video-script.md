@@ -8,7 +8,7 @@ problem, show the product as a user would, and make the value obvious.
 - **Person A** sets up first with the **Late Night Indie** demo playlist.
 - **Person B** sets up second with **Road Trip Country**. They match at **85%**
   ("both into vocal tracks", "both into mellow songs"), the highest-scoring pair of demo playlists.
-- Both open the same public URL (see "Sharing it with a public URL" in the README).
+- Both open the same public uniform resource locator (URL) (see "Sharing it with a public URL" in the README).
 - Narration is about 155 words, read over quiet café jazz.
 
 ---
@@ -66,7 +66,7 @@ mellow songs**.
 ## 0:53–1:00 · Close
 
 **On screen:** both chat windows side by side, then an end card with the logo, tagline and
-QR code.
+Quick Response (QR) code.
 
 > "An easier first conversation — starting from something you already share. That's Spotafriend."
 
