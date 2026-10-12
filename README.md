@@ -4,7 +4,7 @@
 
 Spotafriend takes the songs from a playlist, analyzes how they sound, builds a "taste profile," and matches the listener with like-minded people nearby. When two people match, both are notified instantly, and they can open a live chat and recommend songs to each other.
 
-> **Scope:** A hackathon demo. The server runs on one laptop and keeps everything in an in-memory SQLite database that's rebuilt from the dataset each time it starts; no login, nothing saved. Live matching and chat go through **AWS AppSync**, and a free **Cloudflare tunnel** gives the laptop a public `https://` URL so phones and other laptops can join.
+> **Scope:** A hackathon demo. The server runs on one laptop and keeps everything in an in-memory SQLite database that's rebuilt from the dataset each time it starts; no login, nothing saved. Live matching and chat go through **Amazon Web Services (AWS) AppSync**, and a free **Cloudflare tunnel** gives the laptop a public `https://` uniform resource locator (URL) so phones and other laptops can join.
 >
 > 📚 More in [`docs/`](docs/): [how we built it](docs/build-story.md) (what we tried and why we switched) and the [live demo script](docs/hackathon-demo-script.md).
 
@@ -46,7 +46,7 @@ To open the demo on other devices, give the running server a public `https://` a
 .claude/skills/public-url/start-tunnel.sh
 ```
 
-It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public URL: https://….trycloudflare.com` banner and a QR code people can scan with their phones (the QR code needs `segno`: `.venv/bin/pip install segno`; it's also saved as a PNG). Keep it running during the demo; each start gets a new URL. It has to be `https://` because the page needs a secure context (for `crypto.randomUUID()` and the location used by the distance slider). In Claude Code, the `public-url` skill does the same thing.
+It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public URL: https://….trycloudflare.com` banner and a Quick Response (QR) code people can scan with their phones (the QR code needs `segno`: `.venv/bin/pip install segno`; it's also saved as a Portable Network Graphics (PNG)). Keep it running during the demo; each start gets a new URL. It has to be `https://` because the page needs a secure context (for `crypto.randomUUID()` and the location used by the distance slider). In Claude Code, the `public-url` skill does the same thing.
 
 ---
 
@@ -54,7 +54,7 @@ It downloads `cloudflared` into `~/.local/bin` if needed, then prints a `Public 
 
 The demo uses two devices on the same public URL (see "Sharing it with a public URL" above) and needs the AppSync settings in `.env` (see "Configuration").
 
-1. **Person A** (laptop): type a name, click the **Late Night Indie** demo playlist, set the distance slider (e.g. **Within 5 miles**), and click **Find my people**. The page lists the songs (ones missing from the dataset are greyed out) and says no one else is here yet. Allow location when the browser asks.
+1. **Person A** (laptop): type a name, click the **Late Night Indie** demo playlist, set the distance slider (for example **Within 5 miles**), and click **Find my people**. The page lists the songs (ones missing from the dataset are greyed out) and says no one else is here yet. Allow location when the browser asks.
 2. **Person B** (phone): do the same with **Road Trip Country**.
 3. Both screens show **"You've received a match!"** at once. Person B's match card shows the score and why: **85% · both into vocal tracks · both into mellow songs**, with no songs in common. Everyone else with the site open sees "A and B just matched!".
 4. Both tap **Open chat**: a chat window titled with the other person's name. Messages arrive instantly.
@@ -90,7 +90,7 @@ These are **made-up playlists stored in the app**, not real Spotify playlists; r
 
 ## ✨ What's Built
 
-- **Playlist import** from a link (share links, `spotify:playlist:` links or bare IDs), using the built-in demo playlists, with coverage ("27 songs · 25 analyzed").
+- **Playlist import** from a link (share links, `spotify:playlist:` links or bare identifiers (IDs)), using the built-in demo playlists, with coverage ("27 songs · 25 analyzed").
 - **Taste profile & matching** on the sound of your songs, with plain-English reasons ("both into mellow songs") and the songs and artists you share.
 - **Distance slider** from "Within 1 mile" to "Across the world", using the browser's location rounded to about half a mile.
 - **Instant match notifications across devices** ("You've received a match!") through AWS AppSync, plus "A and B just matched!" announcements for everyone else.
@@ -98,8 +98,8 @@ These are **made-up playlists stored in the app**, not real Spotify playlists; r
 - **Public URL with a QR code** through a free Cloudflare tunnel (one script, also a Claude Code skill).
 - **In-app chat** (the original version): chat requests with Accept / Decline, song sharing from your playlist, a notification bell and pop-ups.
 - **18 made-up listeners + Riley** for rehearsing alone; off by default (`SPOTAFRIEND_FAKE_USERS=on`).
-- **Email alerts (optional)** through AWS SNS for people who are away from the site.
-- **SQL access** to the data for exploring it (read-only).
+- **Email alerts (optional)** through AWS Simple Notification Service (SNS) for people who are away from the site.
+- **Structured Query Language (SQL) access** to the data for exploring it (read-only).
 
 ---
 
@@ -116,11 +116,11 @@ cp .env.example .env
 | Setting | What it does | Default |
 |---|---|---|
 | `SPOTAFRIEND_EMAIL_ALERTS` | Email alerts: `off`, `log` (print instead of sending) or `sns` (send via AWS) | `off` |
-| `SPOTAFRIEND_SNS_TOPIC_ARN` | The SNS topic to send through, e.g. one a teammate created | empty (use `SPOTAFRIEND_SNS_TOPIC`) |
+| `SPOTAFRIEND_SNS_TOPIC_ARN` | The SNS topic to send through, for example one a teammate created | empty (use `SPOTAFRIEND_SNS_TOPIC`) |
 | `SPOTAFRIEND_SNS_TOPIC` | Topic name to look up or create in your own AWS account | `spotafriend-alerts` |
-| `SPOTAFRIEND_APPSYNC_HTTP_DOMAIN`, `SPOTAFRIEND_APPSYNC_REALTIME_DOMAIN`, `SPOTAFRIEND_APPSYNC_API_KEY` | The AppSync Event API that live chat runs on (see "Live chat" below). Off while empty | empty |
+| `SPOTAFRIEND_APPSYNC_HTTP_DOMAIN`, `SPOTAFRIEND_APPSYNC_REALTIME_DOMAIN`, `SPOTAFRIEND_APPSYNC_API_KEY` | The AppSync Event application programming interface (API) that live chat runs on (see "Live chat" below). Off while empty | empty |
 | `SPOTAFRIEND_FAKE_USERS` | `on` brings back Riley and the 18 made-up listeners (for rehearsing alone) | `off` |
-| `AWS_REGION` | AWS region | from the topic ARN, then `~/.aws/config` |
+| `AWS_REGION` | AWS region | from the topic Amazon Resource Name (ARN), then `~/.aws/config` |
 | `SPOTAFRIEND_AWAY_SECONDS` | Seconds without activity before someone counts as away | `60` |
 | `SPOTAFRIEND_SITE_URL` | Link put in alert emails | `http://localhost:8000` |
 
@@ -177,7 +177,7 @@ It contains **~114,000 tracks across ~114 genres**, collected from the Spotify A
 3. The same song can appear once per genre, so profiles average over **distinct** songs (duplicates have identical features).
 4. Songs not in the dataset still show in the playlist; they just don't add audio features.
 
-**Known limitation:** 114k tracks is a small slice of Spotify's catalog, and the dataset isn't updated. Popular songs will mostly match; niche and recent releases often won't. We show **match coverage** (e.g. "25 of 27 songs analyzed"). For the demo, build playlists mostly from well-known songs.
+**Known limitation:** 114,000 tracks is a small slice of Spotify's catalog, and the dataset isn't updated. Popular songs will mostly match; niche and recent releases often won't. We show **match coverage** (for example "27 songs · 25 analyzed"). For the demo, build playlists mostly from well-known songs.
 
 > A cleaned version (one row per song, all of its genres, plus a genre group) is on the `data-cleaning` branch as `data/songs_clean.csv`. It isn't merged or used by the server yet.
 
@@ -210,7 +210,7 @@ cd backend
 
 - **Backend:** Django 4.2, Python
 - **Database:** SQLite in memory (rebuilt from `dataset.csv` on each start)
-- **Frontend:** two HTML pages with plain JavaScript, no build step (`index.html`, `chat.html`)
+- **Frontend:** two HyperText Markup Language (HTML) pages with plain JavaScript, no build step (`index.html`, `chat.html`)
 - **Real-time:** AWS AppSync Events; each page keeps one WebSocket to AWS for matches, announcements and chat. The browser talks to AWS directly; the server only hands out the endpoint and key.
 - **In-app chat and the bell:** the page checks the server for news every 1.5–2 seconds
 - **Public URL:** Cloudflare quick tunnel (`cloudflared`), QR code via `segno`
@@ -222,7 +222,7 @@ The server handles one request at a time on purpose: the shared in-memory databa
 
 ## 🧮 Matching Approach
 
-**What's built (v1):** each user's profile is the average of six audio features over their distinct songs: `danceability`, `energy`, `valence`, `acousticness`, `instrumentalness`, `speechiness`. (Tempo is stored and shown, but left out of matching.)
+**What's built (version 1):** each user's profile is the average of six audio features over their distinct songs: `danceability`, `energy`, `valence`, `acousticness`, `instrumentalness`, `speechiness`. (Tempo is stored and shown, but left out of matching.)
 
 Each feature is put on a common scale by dividing by its spread across the dataset (z-scores), so no single feature dominates. Users are compared by distance:
 
@@ -233,7 +233,7 @@ score     = 100 × 2^(−distance²)        # 100 = identical, 50 at distance 1.
 
 Nearest neighbours come from a single SQL query over `user_profiles`. That's plenty fast for thousands of users. **Reasons** list features where both people lean the same way compared with the average song ("both into upbeat songs").
 
-**Planned (v2), from the original plan:** add genres, artists and shared songs to the score, e.g.
+**Planned (version 2), from the original plan:** add genres, artists and shared songs to the score, for example:
 
 ```
 score = 0.35 * sound + 0.25 * cosine(genres) + 0.25 * weightedJaccard(artists) + 0.15 * jaccard(tracks)
@@ -301,11 +301,11 @@ spotafriend/
 
 ### 0. Setup
 - [ ] Create a Spotify Developer app (owner account needs Premium)
-- [ ] Add redirect URI `http://127.0.0.1:8888/callback` (only used by the one-time token script)
+- [ ] Add redirect uniform resource identifier (URI) `http://127.0.0.1:8888/callback` (only used by the one-time token script)
 - [x] Backend (Django) and demo page
 - [x] `.env.example` and `.env` loading
 - [x] `.gitignore` (`.venv`, `.env`, `dataset.csv`)
-- [x] Dataset CSV (downloaded manually; see Running Locally)
+- [x] Dataset as a comma-separated values (CSV) file, downloaded manually (see Running Locally)
 - [x] One-command start (`manage.py runserver`)
 
 ### 1. Spotify Token (one-time)
@@ -346,8 +346,8 @@ spotafriend/
 ### 6. Chat & Notifications
 - [ ] "Who am I?" user switcher (today, refreshing the page forgets who you are)
 - [x] Chat requests with Accept / Decline
-- [x] Messages; the page checks for new ones every 1.5 s
-- [x] Instant delivery with WebSockets: live chat over AWS AppSync (the in-app chat still checks every 1.5 s)
+- [x] Messages; the page checks for new ones every 1.5 seconds
+- [x] Instant delivery with WebSockets: live chat over AWS AppSync (the in-app chat still checks every 1.5 seconds)
 - [x] Start a chat from a match card; history is kept while the server runs
 - [x] Share songs from your playlist in chat
 - [x] Made-up listeners accept requests and reply; first reply mentions a shared artist

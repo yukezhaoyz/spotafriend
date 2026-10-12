@@ -1,6 +1,6 @@
 # Spotafriend: hackathon main demo script
 
-A **5-minute live demo** followed by Q&A. It tells the story, shows the product live on two
+A **5-minute live demo** followed by questions and answers (Q&A). It tells the story, shows the product live on two
 devices, then explains how each feature is built, which tools we used and why.
 
 **Speakers.** The script is split into five speaking parts so the whole team can take a
@@ -8,12 +8,12 @@ turn. Fill in names:
 
 | Part | Who | What they do |
 |---|---|---|
-| **S1** Problem | | Opens and sells the problem |
-| **S2** Demo narrator | | Talks the audience through the live demo |
+| **Speaker 1 (S1)** Problem | | Opens and sells the problem |
+| **Speaker 2 (S2)** Demo narrator | | Talks the audience through the live demo |
 | **Driver A** | | Plays **Person A** on the laptop (on the projector) |
 | **Driver B** | | Plays **Person B** on a phone (mirrored or held to a camera) |
-| **S3** Data & matching | | Explains the dataset and the matching math |
-| **S4** Real-time & AWS | | Explains AppSync, distance, chat and sharing |
+| **Speaker 3 (S3)** Data & matching | | Explains the dataset and the matching math |
+| **Speaker 4 (S4)** Real-time & Amazon Web Services (AWS) | | Explains AppSync, distance, chat and sharing |
 
 **Demo pair.** Person A uses **Late Night Indie**, Person B uses **Road Trip Country**.
 They match at **85%** with "both into vocal tracks" and "both into mellow songs", the
@@ -83,14 +83,14 @@ card appears on Person A's screen.
 > Your taste profile is the average of six features across your songs — things like energy,
 > how happy a song sounds, and how acoustic it is. We scale each feature by its spread across
 > the dataset so none dominates, and the score is simply distance: identical taste is 100%,
-> one standard step apart is 50%. Finding your closest people is a single SQL query. The
+> one standard step apart is 50%. Finding your closest people is a single Structured Query Language (SQL) query. The
 > reasons come from features where you *both* sit on the same side of the average song —
 > so you get 'both into mellow songs' instead of a number nobody understands."
 
 ## 3:15–4:35 · How it works: real-time, distance and sharing (S4)
 
 > S4: "The real-time part runs on **AWS AppSync Events**: managed publish-subscribe over
-> WebSockets. We first built it on **SNS and SQS**, but SQS is a work queue — we had to poll
+> WebSockets. We first built it on **Simple Notification Service (SNS) and Simple Queue Service (SQS)**, but SQS is a work queue — we had to poll
 > it every second and it only returns a random sample of messages, so it got slower as it
 > filled up. AppSync *pushes* every message instantly and costs per message, so we switched.
 >
@@ -103,7 +103,7 @@ card appears on Person A's screen.
 > and nothing is stored — not in our database, not in AWS.
 >
 > And to put it on your phones for free, the laptop runs a **Cloudflare tunnel** that gives
-> it a public HTTPS address — one script, which also prints the QR code you scanned."
+> it a public HyperText Transfer Protocol Secure (HTTPS) address — one script, which also prints the Quick Response (QR) code you scanned."
 
 ## 4:35–5:00 · Why it matters and what's next (S1)
 
@@ -139,8 +139,8 @@ Use this to prepare the S3/S4 parts and for Q&A.
 
 | Feature | How it's built | Tools | Why this way |
 |---|---|---|---|
-| **Playlist import** | Accepts share links, `spotify:playlist:` links or bare IDs; reads the songs from the built-in demo playlists. Shows coverage ("27 songs · 25 analyzed"). | Django view, `playlists.py` (the single place real Spotify plugs in) | Spotify now only returns playlist songs to the token owner's playlists, so the demo uses stored playlists. |
-| **Song data** | `dataset.csv` loaded into an in-memory SQLite `tracks` table at startup, indexed on `track_id`. Profiles average over *distinct* songs (the dataset repeats a song once per genre). | Kaggle "Spotify Tracks Dataset" (~114k tracks, ~114 genres), SQLite | Spotify's audio-features API is deprecated for new apps. In-memory SQLite is fast, needs no setup, and rebuilds itself on every start. |
+| **Playlist import** | Accepts share links, `spotify:playlist:` links or bare identifiers (IDs); reads the songs from the built-in demo playlists. Shows coverage ("27 songs · 25 analyzed"). | Django view, `playlists.py` (the single place real Spotify plugs in) | Spotify now only returns playlist songs to the token owner's playlists, so the demo uses stored playlists. |
+| **Song data** | `dataset.csv` loaded into an in-memory SQLite `tracks` table at startup, indexed on `track_id`. Profiles average over *distinct* songs (the dataset repeats a song once per genre). | Kaggle "Spotify Tracks Dataset" (~114,000 tracks, ~114 genres), SQLite | Spotify's audio-features application programming interface (API) is deprecated for new apps. In-memory SQLite is fast, needs no setup, and rebuilds itself on every start. |
 | **Taste profile & score** | Average of 6 features, z-scaled by each feature's spread; `score = 100 × 2^(−distance²)`; nearest neighbours in one SQL query. | Python, SQL | Simple, explainable, and fast for thousands of users. |
 | **Plain-English reasons** | Features where both people sit on the same side of the dataset average, strongest first ("both into mellow songs"). Match cards also list shared songs and artists. | `matching.shared_traits` | A reason people can read beats a bare number. |
 | **Distance slider** | 1, 5, 10, 25, 50, 100, 500, 1,000 miles or "Across the world". Browser geolocation rounded to 2 decimal places (≈ half a mile), great-circle (haversine) distance, and both people's limits must hold. | Browser Geolocation API | Newcomers want people *nearby*; rounding keeps exact locations private. |
@@ -148,10 +148,10 @@ Use this to prepare the S3/S4 parts and for Q&A.
 | **Match announcements** | The page that creates a pair's room publishes `MATCHED`; everyone else sees "A and B just matched!". | AppSync (`/chat/announcements`) | Makes the site feel alive. |
 | **Live chat** | Each room is a channel; messages are pushed over the WebSocket; a late joiner says `HELLO` and gets up to 50 missed messages as `HISTORY`. Nothing is stored. | AppSync (`/chat/rooms/<id>`), hand-written WebSocket client (`_appsync.html`) | Instant delivery with no database and no polling. |
 | **Song recommendations** | **+** in the chat searches the catalog by title or artist, de-duplicated, and sends a "Recommended a song" card. | `/api/tracks/` search | The music becomes the icebreaker. |
-| **Original in-app chat** (also built) | Chat requests with Accept / Decline, song sharing from your own playlist, notification bell and pop-ups; the page checks for news every 1.5–2 s. Made-up listeners (incl. "Riley", tuned to mirror your playlist) can be turned on to rehearse alone. | Django models, polling | Our first version, still there; the made-up listeners are off for the real demo (`SPOTAFRIEND_FAKE_USERS`). |
-| **Email alerts** (optional) | If your page hasn't checked in for 60 s, new messages and chat requests are emailed. One SNS topic; each subscription has a filter on a key derived from the email, so people only get their own. | AWS SNS, boto3 | Reaches people who've left the site, without running a mail server. |
+| **Original in-app chat** (also built) | Chat requests with Accept / Decline, song sharing from your own playlist, notification bell and pop-ups; the page checks for news every 1.5–2 seconds. Made-up listeners (including "Riley", tuned to mirror your playlist) can be turned on to rehearse alone. | Django models, polling | Our first version, still there; the made-up listeners are off for the real demo (`SPOTAFRIEND_FAKE_USERS`). |
+| **Email alerts** (optional) | If your page hasn't checked in for 60 seconds, new messages and chat requests are emailed. One SNS topic; each subscription has a filter on a key derived from the email, so people only get their own. | AWS SNS, boto3 | Reaches people who've left the site, without running a mail server. |
 | **Read-only SQL explorer** | `manage.py sql` and `POST /api/query/` run queries with `PRAGMA query_only`. | SQLite | Lets the team explore the data safely. |
-| **Public URL + QR code** | `.claude/skills/public-url/start-tunnel.sh` downloads `cloudflared` if needed, opens a free quick tunnel, prints the URL and a QR code (also a Claude Code skill). | Cloudflare quick tunnel, segno | The page needs HTTPS (for `crypto.randomUUID()` and location). Free, no account, no server to manage. |
+| **Public uniform resource locator (URL) + QR code** | `.claude/skills/public-url/start-tunnel.sh` downloads `cloudflared` if needed, opens a free quick tunnel, prints the URL and a QR code (also a Claude Code skill). | Cloudflare quick tunnel, segno | The page needs HTTPS (for `crypto.randomUUID()` and location). Free, no account, no server to manage. |
 | **One-command AWS setup** | `manage.py appsync_setup` creates or reuses the Event API, the `chat` namespace and an API key, then prints the `.env` lines. | boto3 | Repeatable setup for any teammate. |
 | **Team workflow** | Every change landed through a GitHub pull request with a written description and test notes. | GitHub, Claude Code | Reviewable history for a six-person team. |
 
@@ -188,7 +188,7 @@ Use this to prepare the S3/S4 parts and for Q&A.
 - **Real Spotify import isn't built.** The playlists are stored demo playlists. Spotify's
   audio-features API is closed to new apps and playlist access now needs the owner's login,
   so we planned around it; `playlists.py` is where it plugs in.
-- **The dataset is a snapshot of ~114k songs**, so niche or new songs may not be analyzed.
+- **The dataset is a snapshot of ~114,000 songs**, so niche or new songs may not be analyzed.
   That's why coverage is shown.
 - **The AppSync API key is visible in the page.** That's fine for a demo; we'd swap it for
   per-user sign-in (for example Amazon Cognito) in a real product, and we'll rotate the key
@@ -196,13 +196,9 @@ Use this to prepare the S3/S4 parts and for Q&A.
 - **No accounts or saved data:** a server restart clears everything. That was a deliberate
   scope choice for the hackathon.
 
-**Housekeeping before judges open the repo:**
-- Merge the open demo-video-script PR so `docs/` is on `main`.
-- Update the README: its architecture diagram doesn't show AppSync or the tunnel yet, the task
-  list still has "Instant delivery with WebSockets" unchecked (live chat does this now), and
-  "Deployment" is listed as out of scope even though the tunnel makes the site public.
-- Record a backup video of the live demo (it's still unchecked in the task list) in case the
-  Wi-Fi fails on the day.
+**Before the day:**
+- Record a backup video of the live demo (it's still unchecked in the README's task list) in
+  case the Wi-Fi fails.
 
 ---
 
